@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Courses and sections · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Courses and sections</h1>
+
+<div class="row g-4 mb-5">
+  <div class="col-lg-6">
+    <h2 class="h5">Add a course</h2>
+    <form data-api="/courses" data-reload data-success="Course created.">
+      <div class="mb-3">
+        <label for="course-code" class="form-label">Course code</label>
+        <input id="course-code" name="code" class="form-control" maxlength="20"
+               placeholder="CS201" required>
+      </div>
+      <div class="mb-3">
+        <label for="course-name" class="form-label">Course name</label>
+        <input id="course-name" name="name" class="form-control" maxlength="120" required>
+      </div>
+      <div class="mb-3">
+        <label for="course-credits" class="form-label">Credits (1 to 5)</label>
+        <input id="course-credits" name="credits" type="number" min="1" max="5"
+               class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label for="course-prereqs" class="form-label">Prerequisites (optional)</label>
+        <input id="course-prereqs" name="prerequisites" class="form-control"
+               placeholder="CS101, CS102" aria-describedby="prereq-help">
+        <div id="prereq-help" class="form-text">
+          Comma-separated codes of courses that already exist.</div>
+      </div>
+      <button class="btn btn-primary">Save course</button>
+      <div class="form-msg mt-3" role="alert"></div>
+    </form>
+  </div>
+
+  <div class="col-lg-6">
+    <h2 class="h5">Add a section</h2>
+    {% if courses and terms and faculty %}
+    <form data-api="/courses/sections" data-reload data-success="Section created.">
+      <div class="mb-3">
+        <label for="section-course" class="form-label">Course</label>
+        <select id="section-course" name="courseId" class="form-select" required>
+          {% for c in courses %}
+          <option value="{{ c.id }}">{{ c.code }} · {{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="section-term" class="form-label">Term</label>
+        <select id="section-term" name="termId" class="form-select" required>
+          {% for t in terms %}
+          <option value="{{ t.id }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="section-name" class="form-label">Section name</label>
+        <input id="section-name" name="name" class="form-control" maxlength="10"
+               placeholder="A" required>
+      </div>
+      <div class="mb-3">
+        <label for="section-faculty" class="form-label">Faculty</label>
+        <select id="section-faculty" name="facultyId" class="form-select" required>
+          {% for f in faculty %}
+          <option value="{{ f.id }}">{{ f.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="section-capacity" class="form-label">Capacity (seats)</label>
+        <input id="section-capacity" name="capacity" type="number" min="1"
+               class="form-control" required>
+      </div>
+      <button class="btn btn-primary">Save section</button>
+      <div class="form-msg mt-3" role="alert"></div>
+    </form>
+    {% else %}
+    <p>To add a section you need at least one course, one
+       <a href="/ui/admin/terms">term</a> and one faculty account.</p>
+    {% endif %}
+  </div>
+</div>
+
+<h2 class="h5">Courses</h2>
+<div class="table-responsive mb-5">
+  <table class="table table-striped">
+    <caption class="visually-hidden">All courses</caption>
+    <thead>
+      <tr><th scope="col">Code</th><th scope="col">Name</th>
+          <th scope="col">Credits</th><th scope="col">Prerequisites</th></tr>
+    </thead>
+    <tbody>
+      {% for c in courses %}
+      <tr>
+        <td>{{ c.code }}</td><td>{{ c.name }}</td><td>{{ c.credits }}</td>
+        <td>{{ c.prerequisites|join(", ") or "None" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No courses yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="h5">Sections</h2>
+<div class="table-responsive">
+  <table class="table table-striped">
+    <caption class="visually-hidden">All sections</caption>
+    <thead>
+      <tr><th scope="col">Course</th><th scope="col">Term</th><th scope="col">Section</th>
+          <th scope="col">Faculty</th><th scope="col">Seats taken</th></tr>
+    </thead>
+    <tbody>
+      {% for s in sections %}
+      <tr>
+        <td>{{ s.courseCode }} · {{ s.courseName }}</td><td>{{ s.term }}</td>
+        <td>{{ s.name }}</td><td>{{ s.faculty or "Not assigned" }}</td>
+        <td>{{ s.seatsTaken }} / {{ s.capacity }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No sections yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
