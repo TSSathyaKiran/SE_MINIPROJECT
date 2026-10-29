@@ -34,3 +34,29 @@ def test_create_term_is_audited(client, login_as):
     log = AuditLog.query.one()
     assert (log.user_id, log.action, log.record_type, log.record_id) == \
         (admin_user.id, "create", "term", "1")
+def test_tc_enr_01_course_created_and_listed(client, login_as):
+    _, admin = login_as("admin")
+    res = client.post("/courses", headers=admin,
+                      json={"code": "cs101", "name": "Intro to Programming", "credits": 4})
+    assert res.status_code == 201
+    listed = client.get("/courses", headers=admin).json["courses"]
+    assert [c["code"] for c in listed] == ["CS101"]
+
+
+def test_tc_enr_01_duplicate_course_code_rejected(client, login_as):
+    _, admin = login_as("admin")
+    body = {"code": "CS101", "name": "Intro", "credits": 4}
+    assert client.post("/courses", json=body, headers=admin).status_code == 201
+    assert client.post("/courses", json=body, headers=admin).status_code == 409
+
+
+def test_tc_enr_01_course_validation_and_role(client, login_as):
+    _, admin = login_as("admin")
+    _, student = login_as("student")
+    assert client.post("/courses", json={"code": "CS101", "name": "Intro"},
+                       headers=admin).status_code == 400            # credits missing
+    assert client.post("/courses", json={"code": "CS101", "name": "Intro", "credits": 9},
+                       headers=admin).status_code == 400            # credits out of range
+    assert client.post("/courses", json={"code": "CS101", "name": "Intro", "credits": 4},
+                       headers=student).status_code == 403          # students can't create
+    assert client.get("/courses").status_code == 401                # must be logged in
