@@ -60,3 +60,22 @@ def test_tc_enr_01_course_validation_and_role(client, login_as):
     assert client.post("/courses", json={"code": "CS101", "name": "Intro", "credits": 4},
                        headers=student).status_code == 403          # students can't create
     assert client.get("/courses").status_code == 401                # must be logged in
+def test_tc_enr_01_course_prerequisites_saved_and_listed(client, login_as):
+    _, admin = login_as("admin")
+    for code in ("CS101", "CS102"):
+        client.post("/courses", json={"code": code, "name": code, "credits": 4}, headers=admin)
+    res = client.post("/courses", headers=admin, json={
+        "code": "CS201", "name": "Data Structures", "credits": 4,
+        "prerequisites": "cs101, CS102"})
+    assert res.status_code == 201
+    courses = {c["code"]: c for c in client.get("/courses", headers=admin).json["courses"]}
+    assert courses["CS201"]["prerequisites"] == ["CS101", "CS102"]
+    assert courses["CS101"]["prerequisites"] == []
+
+
+def test_tc_enr_01_unknown_prerequisite_rejected(client, login_as):
+    _, admin = login_as("admin")
+    res = client.post("/courses", headers=admin, json={
+        "code": "CS201", "name": "Data Structures", "credits": 4, "prerequisites": "CS999"})
+    assert res.status_code == 400
+    assert client.get("/courses", headers=admin).json["courses"] == []

@@ -17,7 +17,7 @@ from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
 from ..core.security import require_login, require_role
 from ..extensions import db
-from ..models import Course, Term
+from ..models import Course, Prerequisite, Term
 
 bp = Blueprint("courses", __name__)
 
@@ -51,9 +51,30 @@ def terms_page():
     return render_template("courses/terms.html", terms=Term.query.order_by(Term.name).all())
 
 
+def _parse_prereq_codes(raw):
+    """'cs101, CS102' (or a list) -> ['CS101', 'CS102'], blanks and repeats removed."""
+    if raw in (None, ""):
+        return []
+    items = raw if isinstance(raw, list) else str(raw).split(",")
+    codes = []
+    for item in items:
+        code = str(item).strip().upper()
+        if code and code not in codes:
+            codes.append(code)
+    return codes
+
+
+def _prereq_codes(course_id):
+    rows = (db.session.query(Course.code)
+            .join(Prerequisite, Prerequisite.requires_course_id == Course.id)
+            .filter(Prerequisite.course_id == course_id)
+            .order_by(Course.code).all())
+    return [code for (code,) in rows]
+
+
 def _course_dict(course):
     return {"id": course.id, "code": course.code, "name": course.name,
-            "credits": course.credits}
+            "credits": course.credits, "prerequisites": _prereq_codes(course.id)}
 
 
 @bp.post("/courses")
@@ -70,9 +91,20 @@ def create_course():
     if Course.query.filter_by(code=code).first():
         raise ApiError(409, "duplicate_course", f"Course {code} already exists")
 
+    # Prerequisites must already exist, which also means they can never form a loop.
+    prereqs = []
+    for prereq_code in _parse_prereq_codes(data.get("prerequisites")):
+        prereq = Course.query.filter_by(code=prereq_code).first()
+        if prereq is None:
+            raise ApiError(400, "unknown_prerequisite",
+                           f"Unknown prerequisite course: {prereq_code}")
+        prereqs.append(prereq)
+
     course = Course(code=code, name=name, credits=credits)
     db.session.add(course)
     db.session.flush()                  # gives course.id before commit
+    for prereq in prereqs:
+        db.session.add(Prerequisite(course_id=course.id, requires_course_id=prereq.id))
     audit("create", "course", course.id)
     db.session.commit()
     return jsonify(courseId=course.id, status="created"), 201
