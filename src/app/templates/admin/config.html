@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Academic settings · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Academic settings</h1>
+
+<form data-api="/admin/config" data-method="PUT" data-reload data-success="Settings saved." class="mb-4" style="max-width: 32rem;">
+  <div class="mb-3">
+    <label for="gradingScale" class="form-label">Grading scale</label>
+    <textarea id="gradingScale" name="gradingScale" class="form-control" rows="8"
+              aria-describedby="gradingScale-help" required>{{ grading_scale }}</textarea>
+    <div id="gradingScale-help" class="form-text">
+      One row per line: minimum %, letter, grade point - highest first, ending at 0.
+    </div>
+  </div>
+  <div class="mb-3">
+    <label for="addDropDeadline" class="form-label">Add/drop deadline</label>
+    <input id="addDropDeadline" name="addDropDeadline" type="date" class="form-control"
+           value="{{ add_drop_deadline }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="gradeLockDate" class="form-label">Grade-lock date</label>
+    <input id="gradeLockDate" name="gradeLockDate" type="date" class="form-control"
+           value="{{ grade_lock_date }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="feeThreshold" class="form-label">Fee threshold</label>
+    <input id="feeThreshold" name="feeThreshold" type="number" min="0" step="any" class="form-control"
+           value="{{ fee_threshold }}" required>
+    <div class="form-text">Enrollment is blocked when a student's overdue fees are above this amount.</div>
+  </div>
+  <button class="btn btn-primary">Save settings</button>
+  <div class="form-msg" role="alert"></div>
+</form>
+{% endblock %}
