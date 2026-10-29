@@ -178,3 +178,15 @@ def list_sections():
         query = query.filter(Section.term_id == as_int(term_id, "termId"))
     sections = query.order_by(Course.code, Section.name).all()
     return jsonify(sections=[_section_dict(s) for s in sections])
+
+@bp.get("/ui/admin/courses")
+@require_role("admin")
+def courses_page():
+    courses = Course.query.order_by(Course.code).all()
+    terms = Term.query.order_by(Term.name).all()
+    faculty = User.query.filter_by(role="faculty", status="active").order_by(User.name).all()
+    sections = Section.query.join(Course).order_by(Course.code, Section.name).all()
+    return render_template("courses/admin.html",
+                           courses=[_course_dict(c) for c in courses],
+                           terms=terms, faculty=faculty,
+                           sections=[_section_dict(s) for s in sections])

@@ -172,3 +172,13 @@ def test_tc_enr_01_seats_taken_counts_only_enrolled(client, login_as, add_user):
     db.session.commit()
     section = client.get("/courses/sections", headers=admin).json["sections"][0]
     assert section["seatsTaken"] == 1       # the dropped student does not hold a seat
+def test_tc_enr_01_admin_courses_page(client, login_as, add_user):
+    _, admin = login_as("admin")
+    body = _enr01_setup(client, admin, add_user)
+    client.post("/courses/sections", json=body, headers=admin)
+    res = client.get("/ui/admin/courses", headers=admin)
+    assert res.status_code == 200
+    assert b"CS101" in res.data
+    _, student = login_as("student")
+    assert client.get("/ui/admin/courses", headers=student).status_code == 403
+    assert client.get("/ui/admin/courses").status_code == 302     # redirected to login
