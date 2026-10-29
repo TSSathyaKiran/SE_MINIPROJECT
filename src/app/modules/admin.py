@@ -7,7 +7,7 @@
 import math
 from datetime import date
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template
 
 from ..core.audit import audit
 from ..core.errors import ApiError, get_json
@@ -107,3 +107,19 @@ def update_config():
         audit("update", "config", key)
     db.session.commit()
     return _config_json()
+
+def _scale_text(scale):
+    """The grading scale as textarea lines: one "90,O,10" per line."""
+    return "\n".join(",".join(str(part) for part in row) for row in scale)
+
+
+@bp.get("/ui/admin/config")
+@require_role("admin")
+def config_page():
+    return render_template(
+        "admin/config.html",
+        grading_scale=_scale_text(get_setting("grading_scale")),
+        add_drop_deadline=get_setting("add_drop_deadline"),
+        grade_lock_date=get_setting("grade_lock_date"),
+        fee_threshold=get_setting("fee_threshold"),
+    )
