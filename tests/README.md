@@ -1,15 +1,9 @@
 # Tests
 
-Place test scripts here, named after the test case IDs in `docs/Test_Plan/Test_Cases.md`.
+- `test_<module>.py`: pytest unit and API tests, one file per module. Run with `pytest`; CI runs them on every PR. Name tests after the test case, e.g. `test_tc_stu_01_admin_creates_student`.
+- `conftest.py`: shared fixtures (`client`, `login_as`, `add_user`).
+- `ui/`: Selenium flows (run by hand).
+- `performance/`: JMeter plans (TC-Perf-01, TC-Perf-02).
+- `postman/`: Postman collection for API and RBAC checks.
 
-Suggested layout:
-
-```
-tests/
-├── unit/          pytest: GPA/CGPA, attendance %, lockout, validation
-├── api/           pytest + Postman collection: RBAC, security, integration
-├── ui/            Selenium: end-to-end flows per role
-├── performance/   JMeter plans (TC-Perf-01, TC-Perf-02)
-├── security/      ZAP / TLS scan configs and reports
-└── data/          SQL seed scripts and CSV test data
-```
+Test case specifications: `docs/Test_Plan/Test_Cases.md`.
