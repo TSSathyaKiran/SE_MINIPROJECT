@@ -1,0 +1,83 @@
+
+{% extends "base.html" %}
+{% block title %}Students · SRS-App{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Student records</h1>
+
+<form data-api="/students" data-reload data-success="Student created."
+      class="row g-2 mb-4">
+
+  <div class="col-md-6">
+    <label for="name" class="form-label">Full name</label>
+    <input id="name" name="name" class="form-control" required>
+  </div>
+
+  <div class="col-md-6">
+    <label for="email" class="form-label">Email</label>
+    <input id="email" name="email" type="email" class="form-control" required>
+  </div>
+
+  <div class="col-md-6">
+    <label for="program" class="form-label">Program</label>
+    <input id="program" name="program" class="form-control" required>
+  </div>
+
+  <div class="col-md-3">
+    <label for="semester" class="form-label">Semester</label>
+    <input id="semester" name="semester" type="number"
+           min="1" max="8" class="form-control" required>
+  </div>
+
+  <div class="col-md-3">
+    <label for="studentNo" class="form-label">Student number (optional)</label>
+    <input id="studentNo" name="studentNo" class="form-control"
+           placeholder="Auto-generated if blank">
+  </div>
+
+  <div class="col-md-6">
+    <label for="password" class="form-label">Initial password</label>
+    <input id="password" name="password" type="password"
+           class="form-control" required>
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-primary">Create student</button>
+  </div>
+
+  <div class="col-12 form-msg" role="alert"></div>
+</form>
+
+<h2 class="h5 mb-3">Existing students</h2>
+
+<div class="table-responsive">
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">Student number</th>
+        <th scope="col">Name</th>
+        <th scope="col">Email</th>
+        <th scope="col">Program</th>
+        <th scope="col">Semester</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in students %}
+      <tr>
+        <td>{{ student.student_no }}</td>
+        <td>{{ student.name }}</td>
+        <td>{{ student.email }}</td>
+        <td>{{ student.program }}</td>
+        <td>{{ student.semester }}</td>
+        <td>{{ student.status }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">No students yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

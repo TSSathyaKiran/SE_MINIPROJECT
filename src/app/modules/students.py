@@ -11,7 +11,7 @@
   GET  /ui/faculty/search     faculty page             #13
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template
 
 from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
@@ -106,3 +106,10 @@ def create_student():
         studentNo=student.student_no,
         status="created",
     ), 201
+
+
+@bp.get("/ui/admin/students")
+@require_role("admin")
+def students_page():
+    students = Student.query.order_by(Student.student_no).all()
+    return render_template("students/admin.html", students=students)
