@@ -11,13 +11,13 @@ Still to build (Srujan, issue #16):
   GET  /courses/sections   any    ?termId=  {sections: [...]}
   GET  /ui/admin/courses   admin  page: course + section forms and lists
 """
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
 from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
 from ..core.security import require_login, require_role
 from ..extensions import db
-from ..models import Course, Prerequisite, Term
+from ..models import Course, Enrollment, Prerequisite, Section, Term, User
 
 bp = Blueprint("courses", __name__)
 
@@ -115,3 +115,66 @@ def create_course():
 def list_courses():
     courses = Course.query.order_by(Course.code).all()
     return jsonify(courses=[_course_dict(c) for c in courses])
+
+
+def _seats_taken(section_id):
+    return Enrollment.query.filter_by(section_id=section_id, status="enrolled").count()
+
+
+def _section_dict(section):
+    return {"id": section.id,
+            "courseId": section.course_id,
+            "courseCode": section.course.code,
+            "courseName": section.course.name,
+            "termId": section.term_id,
+            "term": section.term.name,
+            "name": section.name,
+            "facultyId": section.faculty_id,
+            "faculty": section.faculty.name if section.faculty else None,
+            "capacity": section.capacity,
+            "seatsTaken": _seats_taken(section.id)}
+
+
+@bp.post("/courses/sections")
+@require_role("admin")
+def create_section():
+    data = required(get_json(), "courseId", "termId", "name", "facultyId", "capacity")
+    course_id = as_int(data["courseId"], "courseId")
+    term_id = as_int(data["termId"], "termId")
+    faculty_id = as_int(data["facultyId"], "facultyId")
+    capacity = as_int(data["capacity"], "capacity")
+    name = str(data["name"]).strip().upper()
+    if len(name) > 10:
+        raise ApiError(400, "invalid_field", "Section name is too long")
+    if capacity < 1:
+        raise ApiError(400, "invalid_field", "capacity must be at least 1")
+
+    if db.session.get(Course, course_id) is None:
+        raise ApiError(400, "unknown_course", "That course does not exist")
+    if db.session.get(Term, term_id) is None:
+        raise ApiError(400, "unknown_term", "That term does not exist")
+    faculty = db.session.get(User, faculty_id)
+    if faculty is None or faculty.role != "faculty":
+        raise ApiError(400, "invalid_faculty", "facultyId must be a faculty user")
+    if Section.query.filter_by(course_id=course_id, term_id=term_id, name=name).first():
+        raise ApiError(409, "duplicate_section",
+                       f"Section {name} already exists for this course and term")
+
+    section = Section(course_id=course_id, term_id=term_id, name=name,
+                      faculty_id=faculty_id, capacity=capacity)
+    db.session.add(section)
+    db.session.flush()                  # gives section.id before commit
+    audit("create", "section", section.id)
+    db.session.commit()
+    return jsonify(sectionId=section.id, status="created"), 201
+
+
+@bp.get("/courses/sections")
+@require_login
+def list_sections():
+    query = Section.query.join(Course)
+    term_id = request.args.get("termId")
+    if term_id not in (None, ""):
+        query = query.filter(Section.term_id == as_int(term_id, "termId"))
+    sections = query.order_by(Course.code, Section.name).all()
+    return jsonify(sections=[_section_dict(s) for s in sections])

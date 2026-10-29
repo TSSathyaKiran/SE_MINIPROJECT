@@ -79,3 +79,17 @@ def test_tc_enr_01_unknown_prerequisite_rejected(client, login_as):
         "code": "CS201", "name": "Data Structures", "credits": 4, "prerequisites": "CS999"})
     assert res.status_code == 400
     assert client.get("/courses", headers=admin).json["courses"] == []
+def test_tc_enr_01_section_created_and_listed(client, login_as, add_user):
+    _, admin = login_as("admin")
+    faculty = add_user("prof1", "faculty")
+    term = client.post("/terms", json={"name": "2026-ODD"}, headers=admin).json["termId"]
+    course = client.post("/courses", headers=admin,
+                         json={"code": "CS101", "name": "Intro", "credits": 4}).json["courseId"]
+    res = client.post("/courses/sections", headers=admin, json={
+        "courseId": course, "termId": term, "name": "A",
+        "facultyId": faculty.id, "capacity": 30})
+    assert res.status_code == 201
+    sections = client.get(f"/courses/sections?termId={term}", headers=admin).json["sections"]
+    assert len(sections) == 1
+    assert sections[0]["courseCode"] == "CS101"
+    assert sections[0]["capacity"] == 30 and sections[0]["seatsTaken"] == 0
