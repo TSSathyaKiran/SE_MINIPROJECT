@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Terms · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Academic terms</h1>
+
+<form data-api="/terms" data-reload data-success="Term created." class="row g-2 mb-4">
+  <div class="col-auto">
+    <label for="name" class="visually-hidden">Term name</label>
+    <input id="name" name="name" class="form-control" placeholder="e.g. 2026-ODD" required>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary">Add term</button>
+  </div>
+  <div class="col-12 form-msg" role="alert"></div>
+</form>
+
+<table class="table">
+  <thead><tr><th scope="col">ID</th><th scope="col">Name</th></tr></thead>
+  <tbody>
+    {% for term in terms %}
+    <tr><td>{{ term.id }}</td><td>{{ term.name }}</td></tr>
+    {% else %}
+    <tr><td colspan="2">No terms yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
