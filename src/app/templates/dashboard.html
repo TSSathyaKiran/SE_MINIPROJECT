@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Welcome, {{ user.name }}</h1>
+<div class="row g-3">
+  {% for label, path, built in menu %}
+  <div class="col-sm-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="h5 card-title">{{ label }}</h2>
+        {% if built %}
+        <a href="{{ path }}" class="btn btn-primary btn-sm">Open</a>
+        {% else %}
+        <span class="badge text-bg-secondary">Coming soon</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
