@@ -22,17 +22,50 @@ bp = Blueprint("students", __name__)
 
 @bp.post("/students")
 @require_role("admin")
+def next_student_no():
+    numbers = [int(s.student_no[1:]) for s in Student.query.all() if s.student_no[1:].isdigit()]
+    return f"S{max(numbers, default=1000) + 1}"
+
+@bp.post("/students")
+@require_role("admin")
 def create_student():
-    data = required(get_json(), "studentNo", "name", "email", "program", "semester", "password")
+    data = required(
+        get_json(), "name", "email", "program", "semester", "password"
+    )
+
     semester = as_int(data["semester"], "semester")
     if not 1 <= semester <= 8:
-        raise ApiError(400, "invalid_field", "semester must be between 1 and 8")
+        raise ApiError(
+            400, "invalid_field",
+            "semester must be between 1 and 8"
+        )
 
-    student = Student(student_no=data["studentNo"].strip(), name=data["name"].strip(),
-                      email=data["email"].strip(), program=data["program"].strip(),
-                      semester=semester)
+    student_no = str(data.get("studentNo", "")).strip()
+
+    if student_no:
+        if Student.query.filter_by(student_no=student_no).first():
+            raise ApiError(
+                409, "duplicate_student",
+                f"Student {student_no} already exists"
+            )
+    else:
+        student_no = next_student_no()
+
+    student = Student(
+        student_no=student_no,
+        name=data["name"].strip(),
+        email=data["email"].strip(),
+        program=data["program"].strip(),
+        semester=semester
+    )
+
     db.session.add(student)
-    db.session.flush()                  # gives student.id before commit
+    db.session.flush()
     audit("create", "student", student.id)
     db.session.commit()
-    return jsonify(id=student.id, studentNo=student.student_no, status="created"), 201
+
+    return jsonify(
+        id=student.id,
+        studentNo=student.student_no,
+        status="created"
+    ), 201
