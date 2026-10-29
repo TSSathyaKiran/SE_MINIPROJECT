@@ -4,6 +4,7 @@
   PUT /admin/config           admin   {gradingScale?, addDropDeadline?, gradeLockDate?, feeThreshold?}  400 invalid
   GET /ui/admin/config        admin page
 """
+import math
 from datetime import date
 
 from flask import Blueprint, jsonify
@@ -39,6 +40,8 @@ def _as_number(raw, field):
         number = float(raw)
     except (TypeError, ValueError):
         raise ApiError(400, "invalid_field", f"{field} must be a number")
+    if not math.isfinite(number):
+        raise ApiError(400, "invalid_field", f"{field} must be a finite number")
     return int(number) if number == int(number) else number
 
 

@@ -110,3 +110,11 @@ def test_tc_adm_01_config_is_admin_only(client, login_as):
     res = client.put("/admin/config", json={"feeThreshold": 1}, headers=student)
     assert res.status_code == 403
     assert client.get("/admin/config").status_code == 401  # not logged in
+
+
+def test_tc_adm_01_rejects_non_finite_threshold(client, login_as):
+    _, admin = login_as("admin")
+    for bad in ("inf", "-inf", "nan"):
+        res = client.put("/admin/config", json={"feeThreshold": bad}, headers=admin)
+        assert res.status_code == 400, bad
+        assert res.json["error"]["code"] == "invalid_field"
