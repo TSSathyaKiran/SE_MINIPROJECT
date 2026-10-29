@@ -1,0 +1,9 @@
+/* Keep this small; Bootstrap does most of the work. */
+:focus-visible {
+  outline: 3px solid #fd7e14;
+  outline-offset: 2px;
+}
+
+.form-msg:empty {
+  display: none;
+}
