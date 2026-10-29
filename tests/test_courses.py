@@ -93,3 +93,82 @@ def test_tc_enr_01_section_created_and_listed(client, login_as, add_user):
     assert len(sections) == 1
     assert sections[0]["courseCode"] == "CS101"
     assert sections[0]["capacity"] == 30 and sections[0]["seatsTaken"] == 0
+def _enr01_setup(client, admin, add_user):
+    """Creates a faculty user, a term and a course. Returns a valid section body."""
+    faculty = add_user("prof1", "faculty")
+    term = client.post("/terms", json={"name": "2026-ODD"}, headers=admin).json["termId"]
+    course = client.post("/courses", headers=admin,
+                         json={"code": "CS101", "name": "Intro", "credits": 4}).json["courseId"]
+    return {"courseId": course, "termId": term, "name": "A",
+            "facultyId": faculty.id, "capacity": 30}
+
+
+def test_tc_enr_01_duplicate_section_rejected(client, login_as, add_user):
+    _, admin = login_as("admin")
+    body = _enr01_setup(client, admin, add_user)
+    assert client.post("/courses/sections", json=body, headers=admin).status_code == 201
+    assert client.post("/courses/sections", json=body, headers=admin).status_code == 409
+    # the name is upper-cased, so "a" is the same section as "A"
+    assert client.post("/courses/sections", json={**body, "name": "a"},
+                       headers=admin).status_code == 409
+    # a different section name is fine
+    assert client.post("/courses/sections", json={**body, "name": "B"},
+                       headers=admin).status_code == 201
+
+
+def test_tc_enr_01_section_validation(client, login_as, add_user):
+    _, admin = login_as("admin")
+    student, _ = login_as("student")
+    body = _enr01_setup(client, admin, add_user)
+
+    def post(**changes):
+        return client.post("/courses/sections", json={**body, **changes}, headers=admin)
+
+    assert post(courseId=9999).status_code == 400        # unknown course
+    assert post(termId=9999).status_code == 400          # unknown term
+    assert post(facultyId=student.id).status_code == 400  # not a faculty user
+    assert post(facultyId=9999).status_code == 400       # unknown user
+    assert post(capacity=0).status_code == 400           # capacity must be >= 1
+    assert post(capacity="many").status_code == 400      # not a number
+    no_name = {k: v for k, v in body.items() if k != "name"}
+    assert client.post("/courses/sections", json=no_name, headers=admin).status_code == 400
+
+
+def test_tc_enr_01_only_admin_creates_sections(client, login_as, add_user):
+    _, admin = login_as("admin")
+    _, student = login_as("student")
+    body = _enr01_setup(client, admin, add_user)
+    assert client.post("/courses/sections", json=body, headers=student).status_code == 403
+    assert client.post("/courses/sections", json=body).status_code == 401
+    assert client.get("/courses/sections").status_code == 401
+
+
+def test_tc_enr_01_sections_filtered_by_term(client, login_as, add_user):
+    _, admin = login_as("admin")
+    body = _enr01_setup(client, admin, add_user)
+    term2 = client.post("/terms", json={"name": "2027-EVEN"}, headers=admin).json["termId"]
+    client.post("/courses/sections", json=body, headers=admin)
+    client.post("/courses/sections", json={**body, "termId": term2}, headers=admin)
+
+    everything = client.get("/courses/sections", headers=admin).json["sections"]
+    assert len(everything) == 2
+    only_first = client.get(f"/courses/sections?termId={body['termId']}",
+                            headers=admin).json["sections"]
+    assert len(only_first) == 1 and only_first[0]["term"] == "2026-ODD"
+    assert client.get("/courses/sections?termId=abc", headers=admin).status_code == 400
+
+
+def test_tc_enr_01_seats_taken_counts_only_enrolled(client, login_as, add_user):
+    from app.extensions import db
+    from app.models import Enrollment
+    _, admin = login_as("admin")
+    body = _enr01_setup(client, admin, add_user)
+    section_id = client.post("/courses/sections", json=body, headers=admin).json["sectionId"]
+    first, _ = login_as("student")
+    second, _ = login_as("student")
+    db.session.add_all([
+        Enrollment(student_id=first.student.id, section_id=section_id, status="enrolled"),
+        Enrollment(student_id=second.student.id, section_id=section_id, status="dropped")])
+    db.session.commit()
+    section = client.get("/courses/sections", headers=admin).json["sections"][0]
+    assert section["seatsTaken"] == 1       # the dropped student does not hold a seat
