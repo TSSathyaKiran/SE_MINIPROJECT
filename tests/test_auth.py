@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from app.core import clock
 from app.extensions import db
-from app.models import AuthSession, User
+from app.models import AuditLog, AuthSession, User
 
 
 def test_tc_auth_01_login_valid_and_invalid(client, add_user):
@@ -82,3 +82,47 @@ def test_inactive_user_cannot_log_in_and_loses_session(client, login_as):
     assert client.get("/terms", headers=headers).status_code == 401
     res = client.post("/auth/login", json={"username": user.username, "password": "pass1234"})
     assert res.status_code == 403
+
+
+def _login(client, password):
+    return client.post("/auth/login", json={"username": "asha", "password": password})
+
+
+def test_tc_auth_03_lockout_after_5_failed_logins(client, add_user):
+    clock.set_now(datetime(2026, 10, 20, 9, 0))
+    user = add_user("asha", "student")
+
+    for _ in range(5):
+        assert _login(client, "wrong").status_code == 401
+    res = _login(client, "pass1234")                   # 6th try, right password
+    assert res.status_code == 423
+    assert res.json["error"]["code"] == "account_locked"
+    assert AuthSession.query.count() == 0
+
+    log = AuditLog.query.filter_by(action="lock").one()
+    assert (log.record_type, log.record_id, log.user_id) == ("user", str(user.id), user.id)
+
+
+def test_lock_lifts_after_15_minutes(client, add_user):
+    start = datetime(2026, 10, 20, 9, 0)
+    clock.set_now(start)
+    user = add_user("asha", "student")
+    for _ in range(5):
+        _login(client, "wrong")
+
+    clock.set_now(start + timedelta(minutes=14))
+    assert _login(client, "pass1234").status_code == 423
+    clock.set_now(start + timedelta(minutes=15, seconds=1))
+    assert _login(client, "pass1234").status_code == 200
+    assert user.failed_logins == 0 and user.locked_until is None
+
+
+def test_successful_login_resets_failed_count(client, add_user):
+    add_user("asha", "student")
+    for _ in range(4):
+        _login(client, "wrong")
+    assert _login(client, "pass1234").status_code == 200
+    for _ in range(4):
+        _login(client, "wrong")
+    assert _login(client, "pass1234").status_code == 200   # 8 failures, never 5 in a row
+    assert AuditLog.query.filter_by(action="lock").count() == 0
