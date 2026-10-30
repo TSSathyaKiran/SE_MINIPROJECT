@@ -2,6 +2,17 @@
 
 Everything you need: setup, how the code works, how to commit, and exactly what to build for each of your issues, one commit per step. The base (#1) is done: login, roles, session timeout, every database table, dashboards, and a finished example (Terms) to copy.
 
+**Roles**
+
+| Person | Role | Also responsible for |
+| --- | --- | --- |
+| Sathya | Scrum Master / Repo Owner | GitHub Project board, assigning issues and reviewers, labels and milestones, sprint planning, review and retro notes, repo settings |
+| Tanuj | QA Lead / Test Engineer | RTM and test case status, defect triage, final regression, Test Summary Report |
+| Vaishnavi | Test Engineer | Performance, accessibility and UI tests |
+| Srujan | Dev Lead | Code questions on courses, enrollment and grading; test builds and seed data |
+
+Everyone also builds their own issues and opens their own PRs.
+
 **Who does what**
 
 | Person | Sprint 1 | Sprint 2 |
@@ -135,8 +146,8 @@ When the issue's last commit is done:
 
 1. `bash scripts/g.sh push`, open the link it prints.
 2. PR title: `<issue title> (#11)`. The description template is filled in for you; keep `Closes #11` at the top.
-3. Ask your reviewer (below). Move the card to **In Review** on the Projects board.
-4. When it's approved and the CI check is green: **Merge pull request → Create a merge commit** (never squash). Post "#11 merged" in the group.
+3. Ask your reviewer (below). Move the card to **In Review** on the Projects board. Sathya (Scrum Master) checks that every issue and PR has an owner, reviewer and milestone.
+4. When it's approved and the CI check is green: **Merge pull request → Create a merge commit** (never squash). Post "#11 merged" in the group so Tanuj (QA Lead) can update the test case status in `docs/Test_Plan/Test_Cases.md` and `RTM.csv`.
 5. If main changed while you worked: `bash scripts/g.sh sync`.
 
 | Author | Reviewer |
