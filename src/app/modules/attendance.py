@@ -51,6 +51,9 @@ def mark_attendance():
         enrollment = Enrollment.query.filter_by(
             section_id=section.id, student_id=record.get("studentId"),
             status="enrolled").first()
+        if enrollment is None:
+            raise ApiError(400, "not_enrolled",
+                           "Student is not enrolled in this section")
         row = Attendance.query.filter_by(enrollment_id=enrollment.id, date=day).first() \
             or Attendance(enrollment_id=enrollment.id, date=day)
         row.status = status
