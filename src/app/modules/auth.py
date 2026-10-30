@@ -44,6 +44,8 @@ def login():
     if user.status != "active":
         raise ApiError(403, "account_inactive", "This account has been deactivated")
 
+    user.failed_logins = 0
+    user.locked_until = None
     token = start_session(user)
     db.session.commit()
     minutes = current_app.config["SESSION_IDLE_MINUTES"]
