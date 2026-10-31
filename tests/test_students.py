@@ -173,3 +173,49 @@ def test_tc_stu_02_only_admin_can_update(client, login_as):
     url = f"/students/{user.student.id}"
     assert client.put(url, json={"name": "X"}, headers=faculty).status_code == 403
     assert client.put(url, json={"name": "X"}).status_code == 401
+
+
+# ---- TC-Stu-03: student self-edit (#12) ----
+
+def test_tc_stu_03_student_edits_phone_and_address(client, login_as):
+    user, headers = login_as("student")
+    sid = user.student.id
+    res = client.put(f"/students/{sid}",
+                     json={"phone": "9876543210", "address": "12 MG Road"}, headers=headers)
+    assert res.status_code == 200
+    student = db.session.get(Student, sid)
+    assert (student.phone, student.address) == ("9876543210", "12 MG Road")
+    log = AuditLog.query.filter_by(action="update", record_type="student").one()
+    assert log.user_id == user.id
+
+
+def test_tc_stu_03_locked_fields_return_400(client, login_as):
+    user, headers = login_as("student")
+    student = user.student
+    sid = student.id
+    before = (student.student_no, student.name, student.email, student.program,
+              student.semester, student.status)
+    for key, value in (("name", "Hacker"), ("program", "MBA"), ("studentNo", "S1"),
+                       ("semester", 8), ("email", "x@y.com"), ("status", "inactive")):
+        res = client.put(f"/students/{sid}", json={key: value}, headers=headers)
+        assert res.status_code == 400, key
+        assert res.json["error"]["code"] == "locked_field"
+    student = db.session.get(Student, sid)
+    assert before == (student.student_no, student.name, student.email, student.program,
+                      student.semester, student.status)
+
+
+def test_tc_stu_03_mixed_request_changes_nothing(client, login_as):
+    user, headers = login_as("student")
+    sid = user.student.id
+    res = client.put(f"/students/{sid}", json={"phone": "111", "name": "Hacker"}, headers=headers)
+    assert res.status_code == 400
+    assert db.session.get(Student, sid).phone is None
+
+
+def test_tc_stu_03_student_cannot_edit_another_student(client, login_as):
+    _, mine = login_as("student")
+    other, _ = login_as("student")
+    res = client.put(f"/students/{other.student.id}", json={"phone": "111"}, headers=mine)
+    assert res.status_code == 403
+    assert db.session.get(Student, other.student.id).phone is None
