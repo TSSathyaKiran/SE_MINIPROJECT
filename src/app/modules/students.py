@@ -15,9 +15,11 @@ from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
 from ..core.security import current_user, hash_password, require_login, require_role
 from ..extensions import db
-from ..models import Student, User
+from ..models import AuthSession, Student, User
 
 bp = Blueprint("students", __name__)
+
+ADMIN_FIELDS = ("name", "email", "phone", "address", "program", "semester", "status")
 
 
 def next_student_no():
@@ -75,6 +77,50 @@ def get_student(student_id):
     student = db.session.get(Student, student_id)
     if student is None:
         raise ApiError(404, "not_found", "Student not found")
+    return jsonify(student_json(student))
+
+
+@bp.put("/students/<int:student_id>")
+@require_role("admin")
+def update_student(student_id):
+    student = db.session.get(Student, student_id)
+    if student is None:
+        raise ApiError(404, "not_found", "Student not found")
+
+    data = get_json()
+    unknown = [k for k in data if k not in ADMIN_FIELDS]
+    if not data or unknown:
+        raise ApiError(400, "invalid_field",
+                       "Send one or more of: " + ", ".join(ADMIN_FIELDS))
+
+    updates = {}
+    for field in ("name", "email", "program"):
+        if field in data:
+            updates[field] = required(data, field)[field].strip()
+    for field in ("phone", "address"):
+        if field in data:
+            updates[field] = str(data[field]).strip()
+    if "semester" in data:
+        semester = as_int(data["semester"], "semester")
+        if not 1 <= semester <= 8:
+            raise ApiError(400, "invalid_field", "semester must be between 1 and 8")
+        updates["semester"] = semester
+    if "status" in data:
+        if data["status"] not in ("active", "inactive"):
+            raise ApiError(400, "invalid_field", "status must be active or inactive")
+        updates["status"] = data["status"]
+
+    deactivating = updates.get("status") == "inactive" and student.status != "inactive"
+    for field, value in updates.items():
+        setattr(student, field, value)
+
+    if "status" in updates and student.user is not None:
+        student.user.status = updates["status"]
+        if deactivating:
+            AuthSession.query.filter_by(user_id=student.user.id).delete()
+
+    audit("deactivate" if deactivating else "update", "student", student.id)
+    db.session.commit()
     return jsonify(student_json(student))
 
 
