@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Mark attendance · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Mark attendance</h1>
+
+{% if sections %}
+<form method="get" action="/ui/faculty/attendance" class="row g-3 mb-4">
+  <div class="col-md-6">
+    <label for="sectionId" class="form-label">Section</label>
+    <select id="sectionId" name="sectionId" class="form-select">
+      {% for s in sections %}
+      <option value="{{ s.id }}" {% if section and s.id == section.id %}selected{% endif %}>
+        {{ s.course.code }} · {{ s.course.name }} · Section {{ s.name }} ({{ s.term.name }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label for="date" class="form-label">Date</label>
+    <input id="date" name="date" type="date" class="form-control" value="{{ day }}">
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button class="btn btn-primary">Load</button>
+  </div>
+</form>
+
+{% if section %}
+<h2 class="h5">{{ section.course.code }} · Section {{ section.name }} · {{ day }}</h2>
+<div class="table-responsive">
+  <table class="table table-striped">
+    <caption class="visually-hidden">Enrolled students and their attendance for {{ day }}</caption>
+    <thead>
+      <tr><th scope="col">Student no</th><th scope="col">Name</th>
+          <th scope="col">Status</th></tr>
+    </thead>
+    <tbody>
+      {% for row in roster %}
+      <tr>
+        <td>{{ row.student.student_no }}</td><td>{{ row.student.name }}</td>
+        <td>{{ row.status|capitalize if row.status else "Not marked" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">No students enrolled in this section.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% else %}
+<p>You have no sections assigned yet. Ask an admin to assign you one.</p>
+{% endif %}
+{% endblock %}
