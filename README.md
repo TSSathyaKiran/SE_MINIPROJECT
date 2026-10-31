@@ -6,10 +6,12 @@ Problem Statement No. 12: a web-based system to manage student profiles, courses
 
 | USN | Name | Role | GitHub username |
 | --- | --- | --- | --- |
-| PES2UG24CS553 | Tanuj N | Scrum Master / QA Lead (settings, attendance, ops) |  |
-| PES2UG24CS547 | T S Sathya Kiran | Repo owner, Developer + Test Engineer (auth, audit, fees, security) | TSSathyaKiran |
-| PES2UG24CS517 | Sri Vaishnavi Peri | Developer + Test Engineer (students, reports, performance) |  |
-| PES2UG24CS527 | Srujan Yalla | Developer (courses, enrollment, grading) |  |
+| PES2UG24CS547 | T S Sathya Kiran | Scrum Master / Repo Owner, Developer (auth, audit, fees, security) | [TSSathyaKiran](https://github.com/TSSathyaKiran) |
+| PES2UG24CS553 | Tanuj N | QA Lead / Test Engineer, Developer (settings, attendance, ops, final regression) | [Tanujn06](https://github.com/Tanujn06) |
+| PES2UG24CS517 | Sri Vaishnavi Peri | Test Engineer, Developer (students, reports, performance) | [vaishnavii-25](https://github.com/vaishnavii-25) |
+| PES2UG24CS527 | Srujan Yalla | Dev Lead, Developer (courses, enrollment, grading) | [Srujan613](https://github.com/Srujan613) |
+
+Product Owner / Course Coordinator: Prof. Niveditha. Responsibilities for each role are in the [Test Plan](docs/Test_Plan/Student_Record_System_Test_Plan.docx) (section 9) and [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md).
 
 **Start here: [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md)** (setup, how the code works, and every issue step by step).
 

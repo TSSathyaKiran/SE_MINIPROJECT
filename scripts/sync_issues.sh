@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Make the GitHub issues match docs/BACKLOG.md:
-#   - issue #n gets row #n's title, body, labels and milestone (created if missing)
-#   - open issues numbered after the last row are closed as "not planned"
+#   - issue #n gets row #n's title, body, labels and milestone (created if missing);
+#     closed issues stay closed, and issues after the last row (bug reports) are left alone
 # Run from the repo folder. Needs the GitHub CLI, logged in (gh auth login).
 #   bash scripts/sync_issues.sh
 set -euo pipefail
@@ -19,7 +19,6 @@ milestone() { gh api "$repo/milestones?state=all" --jq ".[] | select(.title==\"S
 m1=$(milestone 1); m2=$(milestone 2)
 
 trim() { sed -E 's/^ +| +$//g' <<<"$1"; }
-last=0
 while IFS= read -r row; do
   [[ "$row" =~ ^\|\ [0-9]+\ \| ]] || continue
   IFS='|' read -r _ num title owner sprint srs tcs _ <<<"$row"
@@ -27,7 +26,14 @@ while IFS= read -r row; do
   sprint=$(trim "$sprint"); srs=$(trim "$srs"); tcs=$(trim "$tcs")
   who=$(tr '[:upper:]' '[:lower:]' <<<"$owner")
   ms=$m2; [[ "$sprint" == 1 ]] && ms=$m1
-  body="**Owner:** $owner · **Sprint:** $sprint
+  case "$who" in
+    sathya) role="Scrum Master / Repo Owner" ;;
+    tanuj) role="QA Lead / Test Engineer" ;;
+    vaishnavi) role="Test Engineer" ;;
+    srujan) role="Dev Lead" ;;
+    *) role="Developer" ;;
+  esac
+  body="**Owner:** $owner ($role) · **Sprint:** $sprint
 **SRS:** $srs
 **Test cases:** $tcs
 
@@ -35,18 +41,13 @@ What to build, step by step with the commit for each step: \`docs/TEAM_GUIDE.md\
 
   if gh api "$repo/issues/$num" >/dev/null 2>&1; then
     echo "Updating #$num: $title"
-    gh api -X PATCH "$repo/issues/$num" -f title="$title" -f body="$body" -f state=open \
+    gh api -X PATCH "$repo/issues/$num" -f title="$title" -f body="$body" \
       -F milestone="$ms" -f "labels[]=sprint-$sprint" -f "labels[]=$who" >/dev/null
   else
     echo "Creating: $title"
     gh issue create --title "$title" --body "$body" --label "sprint-$sprint" --label "$who" \
       --milestone "Sprint $sprint" >/dev/null
   fi
-  last=$num
 done < docs/BACKLOG.md
 
-for n in $(gh issue list --state open --limit 200 --json number --jq ".[] | select(.number > $last) | .number"); do
-  echo "Closing #$n (not in the backlog any more)"
-  gh issue close "$n" --reason "not planned" --comment "Merged into the simplified backlog (#1-#$last)." >/dev/null
-done
 echo "Done. Assign each issue to its owner on GitHub."
