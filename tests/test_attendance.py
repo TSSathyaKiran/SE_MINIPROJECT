@@ -1,4 +1,5 @@
 """Faculty marks attendance: TC-Att-01 (issue #7)."""
+import re
 from datetime import date
 
 from app.extensions import db
@@ -88,3 +89,80 @@ def test_tc_att_01_rejects_bad_status_date_and_section(client, login_as, add_use
     })
     assert res.status_code == 404
     assert Attendance.query.count() == 0
+
+
+def _login_page(client, user, password="pass1234"):
+    """Log the shared test client in over the cookie, like a browser would."""
+    res = client.post("/auth/login", json={"username": user.username, "password": password})
+    assert res.status_code == 200, res.json
+
+
+def test_tc_att_01_page_redirects_when_logged_out(client):
+    res = client.get("/ui/faculty/attendance")
+    assert res.status_code == 302
+    assert res.headers["Location"].endswith("/ui/login")
+
+
+def test_tc_att_01_page_is_faculty_only(client, login_as):
+    student, _ = login_as("student")
+    _login_page(client, student)
+    assert client.get("/ui/faculty/attendance").status_code == 403
+    admin, _ = login_as("admin")
+    _login_page(client, admin)
+    assert client.get("/ui/faculty/attendance").status_code == 403
+
+
+def test_tc_att_01_page_lists_only_my_sections(client, login_as, add_user):
+    faculty, _, _, _ = _setup(login_as, add_user)   # mine: CS999
+    other_faculty = add_user("prof2", "faculty")
+    course = Course(code="CS998", name="Databases", credits=4)
+    db.session.add(course)
+    db.session.flush()
+    term = Term.query.one()
+    db.session.add(Section(course_id=course.id, term_id=term.id, name="B",
+                           faculty_id=other_faculty.id, capacity=30))
+    db.session.commit()
+    _login_page(client, faculty)
+    res = client.get("/ui/faculty/attendance")
+    assert res.status_code == 200
+    assert b"CS999" in res.data
+    assert b"CS998" not in res.data
+
+
+def test_tc_att_01_page_shows_enrolled_roster_with_saved_marks(client, login_as, add_user):
+    faculty, headers, student, section = _setup(login_as, add_user)
+    other_student = add_user("stud2", "student").student  # exists, but not enrolled
+    _mark(client, headers, section, student.id, status="absent")
+    _login_page(client, faculty)
+    res = client.get(f"/ui/faculty/attendance?sectionId={section.id}&date=2026-10-30")
+    assert res.status_code == 200
+    assert student.name.encode() in res.data
+    assert other_student.name.encode() not in res.data
+    # the saved mark is preselected, not the "present" default
+    assert re.search(rb'value="absent"[^>]*checked', res.data)
+    assert not re.search(rb'value="present"[^>]*checked', res.data)
+
+
+def test_tc_att_01_page_rejects_other_facultys_section(client, login_as, add_user):
+    _, _, _, section = _setup(login_as, add_user)
+    other_faculty, _ = login_as("faculty")  # a different teacher
+    _login_page(client, other_faculty)
+    res = client.get(f"/ui/faculty/attendance?sectionId={section.id}")
+    assert res.status_code == 403
+
+
+def test_tc_att_01_page_rejects_bad_section_and_date(client, login_as, add_user):
+    faculty, _, _, section = _setup(login_as, add_user)
+    _login_page(client, faculty)
+    res = client.get("/ui/faculty/attendance?sectionId=9999")
+    assert res.status_code == 404
+    res = client.get(f"/ui/faculty/attendance?sectionId={section.id}&date=30/10/2026")
+    assert res.status_code == 400
+
+
+def test_tc_att_01_faculty_menu_link_is_live(client, login_as):
+    faculty, _ = login_as("faculty")
+    _login_page(client, faculty)
+    res = client.get("/ui/faculty")
+    assert res.status_code == 200
+    assert b'href="/ui/faculty/attendance"' in res.data
