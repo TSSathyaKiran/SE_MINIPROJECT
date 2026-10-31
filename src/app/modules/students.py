@@ -20,6 +20,7 @@ from ..models import AuthSession, Student, User
 bp = Blueprint("students", __name__)
 
 ADMIN_FIELDS = ("name", "email", "phone", "address", "program", "semester", "status")
+SELF_FIELDS = ("phone", "address")
 
 
 def next_student_no():
@@ -81,17 +82,30 @@ def get_student(student_id):
 
 
 @bp.put("/students/<int:student_id>")
-@require_role("admin")
+@require_login
 def update_student(student_id):
+    user = current_user()
+    if user.role == "admin":
+        allowed = ADMIN_FIELDS
+    elif user.role == "student":
+        own = Student.query.filter_by(user_id=user.id).first()
+        if own is None or own.id != student_id:
+            raise ApiError(403, "forbidden", "You can only edit your own record")
+        allowed = SELF_FIELDS
+    else:
+        raise ApiError(403, "forbidden", "You are not allowed to edit students")
+
     student = db.session.get(Student, student_id)
     if student is None:
         raise ApiError(404, "not_found", "Student not found")
 
     data = get_json()
-    unknown = [k for k in data if k not in ADMIN_FIELDS]
-    if not data or unknown:
-        raise ApiError(400, "invalid_field",
-                       "Send one or more of: " + ", ".join(ADMIN_FIELDS))
+    if any(k not in allowed for k in data):
+        if user.role == "student":
+            raise ApiError(400, "locked_field", "You can only change phone and address")
+        raise ApiError(400, "invalid_field", "Send one or more of: " + ", ".join(allowed))
+    if not data:
+        raise ApiError(400, "invalid_field", "Send one or more of: " + ", ".join(allowed))
 
     updates = {}
     for field in ("name", "email", "program"):
