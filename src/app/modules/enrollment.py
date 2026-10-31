@@ -6,9 +6,11 @@
 """
 from flask import Blueprint, jsonify
 
+from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
 from ..core.security import current_user, require_role
+from ..core.settings import get_date
 from ..extensions import db
 from ..models import Course, Enrollment, Grade, Prerequisite, Section
 
@@ -77,3 +79,24 @@ def enroll():
     audit("enroll", "enrollment", enrollment.id)
     db.session.commit()                 # the seat check and the insert are one transaction
     return jsonify(enrollmentId=enrollment.id, status="enrolled"), 201
+
+
+@bp.delete("/enroll/<int:enrollment_id>")
+@require_role("student")
+def drop(enrollment_id):
+    enrollment = db.session.get(Enrollment, enrollment_id)
+    if enrollment is None:
+        raise ApiError(404, "enrollment_not_found", "That enrollment does not exist")
+    student = current_user().student
+    if student is None or enrollment.student_id != student.id:
+        raise ApiError(403, "forbidden", "This is not your enrollment")
+    if enrollment.status == "dropped":
+        raise ApiError(409, "already_dropped", "You have already dropped this section")
+    # The last day itself is still allowed; the deadline comes from admin settings.
+    if clock.today() > get_date("add_drop_deadline"):
+        raise ApiError(403, "drop_closed", "The add/drop deadline has passed")
+
+    enrollment.status = "dropped"       # frees the seat; the row stays as history
+    audit("drop", "enrollment", enrollment.id)
+    db.session.commit()
+    return jsonify(enrollmentId=enrollment.id, status="dropped")
