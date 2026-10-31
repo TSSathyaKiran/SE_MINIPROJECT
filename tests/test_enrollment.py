@@ -1,4 +1,10 @@
 """Enrollment and drop (SRS-F-021, F-022): TC-Enr-02, TC-Enr-03."""
+from datetime import datetime
+
+from app.core import clock
+from app.core.settings import set_setting
+from app.extensions import db
+from app.models import AuditLog, Course, Enrollment, Grade, Prerequisite, Section, Term
 from app.extensions import db
 from app.models import Course, Enrollment, Grade, Prerequisite, Section, Term
 
@@ -146,3 +152,98 @@ def test_tc_enr_02_re_enrolling_after_a_drop_reuses_the_row(client, login_as):
     rows = Enrollment.query.filter_by(student_id=student.student.id,
                                       section_id=section.id).all()
     assert len(rows) == 1 and rows[0].status == "enrolled"
+def set_deadline(day):
+    set_setting("add_drop_deadline", day)
+    db.session.commit()
+
+
+def enrolled(user, section):
+    row = Enrollment(student_id=user.student.id, section_id=section.id, status="enrolled")
+    db.session.add(row)
+    db.session.commit()
+    return row.id
+
+
+# Set the clock BEFORE login_as in each test: a session expires after 15 idle minutes,
+# so moving the clock after logging in would log the student out.
+
+def test_tc_enr_03_drop_before_deadline_frees_the_seat(client, login_as):
+    set_deadline("2026-11-15")
+    clock.set_now(datetime(2026, 11, 10, 9, 0))
+    section = make_section(capacity=1)
+    student, headers = login_as("student")
+    _, other_headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+
+    res = client.delete(f"/enroll/{enrollment_id}", headers=headers)
+    assert res.status_code == 200
+    assert res.json["status"] == "dropped"
+    assert db.session.get(Enrollment, enrollment_id).status == "dropped"
+    # the seat is free again, so another student can take it
+    assert client.post("/enroll", json={"sectionId": section.id},
+                       headers=other_headers).status_code == 201
+
+
+def test_tc_enr_03_drop_on_the_deadline_day_is_still_allowed(client, login_as):
+    set_deadline("2026-11-15")
+    clock.set_now(datetime(2026, 11, 15, 17, 0))
+    section = make_section()
+    student, headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+    assert client.delete(f"/enroll/{enrollment_id}", headers=headers).status_code == 200
+
+
+def test_tc_enr_03_drop_after_deadline_rejected(client, login_as):
+    set_deadline("2026-11-15")
+    clock.set_now(datetime(2026, 11, 16, 9, 0))
+    section = make_section()
+    student, headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+
+    res = client.delete(f"/enroll/{enrollment_id}", headers=headers)
+    assert res.status_code == 403
+    assert res.json["error"]["code"] == "drop_closed"
+    assert db.session.get(Enrollment, enrollment_id).status == "enrolled"   # nothing changed
+
+
+def test_tc_enr_03_deadline_comes_from_settings(client, login_as):
+    set_deadline("2026-11-30")           # admin moved the deadline later
+    clock.set_now(datetime(2026, 11, 20, 9, 0))
+    section = make_section()
+    student, headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+    assert client.delete(f"/enroll/{enrollment_id}", headers=headers).status_code == 200
+
+
+def test_tc_enr_03_only_own_enrollment_can_be_dropped(client, login_as):
+    section = make_section()
+    owner, _ = login_as("student")
+    _, intruder = login_as("student")
+    _, faculty = login_as("faculty")
+    enrollment_id = enrolled(owner, section)
+
+    assert client.delete(f"/enroll/{enrollment_id}", headers=intruder).status_code == 403
+    assert client.delete(f"/enroll/{enrollment_id}", headers=faculty).status_code == 403
+    assert client.delete(f"/enroll/{enrollment_id}").status_code == 401
+    assert db.session.get(Enrollment, enrollment_id).status == "enrolled"
+    assert client.delete("/enroll/9999", headers=intruder).status_code == 404
+
+
+def test_tc_enr_03_dropping_twice_is_rejected(client, login_as):
+    section = make_section()
+    student, headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+    assert client.delete(f"/enroll/{enrollment_id}", headers=headers).status_code == 200
+    res = client.delete(f"/enroll/{enrollment_id}", headers=headers)
+    assert res.status_code == 409
+    assert res.json["error"]["code"] == "already_dropped"
+
+
+def test_tc_enr_03_enroll_and_drop_are_audited(client, login_as):
+    section = make_section()
+    _, headers = login_as("student")
+    res = client.post("/enroll", json={"sectionId": section.id}, headers=headers)
+    client.delete(f"/enroll/{res.json['enrollmentId']}", headers=headers)
+    actions = [a.action for a in
+               AuditLog.query.filter_by(record_type="enrollment").order_by(AuditLog.id)]
+    assert actions == ["enroll", "drop"]
