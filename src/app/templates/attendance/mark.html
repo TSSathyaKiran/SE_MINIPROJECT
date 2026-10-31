@@ -26,27 +26,69 @@
 
 {% if section %}
 <h2 class="h5">{{ section.course.code }} · Section {{ section.name }} · {{ day }}</h2>
-<div class="table-responsive">
-  <table class="table table-striped">
-    <caption class="visually-hidden">Enrolled students and their attendance for {{ day }}</caption>
-    <thead>
-      <tr><th scope="col">Student no</th><th scope="col">Name</th>
-          <th scope="col">Status</th></tr>
-    </thead>
-    <tbody>
-      {% for row in roster %}
-      <tr>
-        <td>{{ row.student.student_no }}</td><td>{{ row.student.name }}</td>
-        <td>{{ row.status|capitalize if row.status else "Not marked" }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="3">No students enrolled in this section.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<form id="attendance-form" data-section-id="{{ section.id }}" data-date="{{ day }}">
+  <div class="table-responsive">
+    <table class="table table-striped">
+      <caption class="visually-hidden">Enrolled students and their attendance for {{ day }}</caption>
+      <thead>
+        <tr><th scope="col">Student no</th><th scope="col">Name</th>
+            <th scope="col">Present</th><th scope="col">Absent</th><th scope="col">Late</th></tr>
+      </thead>
+      <tbody>
+        {% for row in roster %}
+        <tr data-student-id="{{ row.student.id }}">
+          <td>{{ row.student.student_no }}</td><td>{{ row.student.name }}</td>
+          {% for status in ["present", "absent", "late"] %}
+          <td>
+            <div class="form-check">
+              <input class="form-check-input" type="radio"
+                     name="status-{{ row.student.id }}"
+                     id="status-{{ row.student.id }}-{{ status }}" value="{{ status }}"
+                     {% if (row.status or "present") == status %}checked{% endif %}>
+              <label class="form-check-label"
+                     for="status-{{ row.student.id }}-{{ status }}">{{ status|capitalize }}</label>
+            </div>
+          </td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td colspan="5">No students enrolled in this section.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if roster %}
+  <button class="btn btn-primary">Save attendance</button>
+  {% endif %}
+  <div class="form-msg mt-3" role="alert"></div>
+</form>
 {% endif %}
 {% else %}
 <p>You have no sections assigned yet. Ask an admin to assign you one.</p>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const attendanceForm = document.getElementById("attendance-form");
+if (attendanceForm) {
+  attendanceForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const records = [...attendanceForm.querySelectorAll("tr[data-student-id]")].map((row) => ({
+      studentId: Number(row.dataset.studentId),
+      status: row.querySelector("input[type=radio]:checked").value,
+    }));
+    try {
+      const result = await api("POST", "/attendance", {
+        sectionId: Number(attendanceForm.dataset.sectionId),
+        date: attendanceForm.dataset.date,
+        records: records,
+      });
+      showMessage(attendanceForm, "Saved attendance for " + result.count + " student(s).", true);
+    } catch (error) {
+      showMessage(attendanceForm, error.message, false);
+    }
+  });
+}
+</script>
 {% endblock %}
