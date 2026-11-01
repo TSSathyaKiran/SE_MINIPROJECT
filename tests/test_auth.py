@@ -126,3 +126,15 @@ def test_successful_login_resets_failed_count(client, add_user):
         _login(client, "wrong")
     assert _login(client, "pass1234").status_code == 200   # 8 failures, never 5 in a row
     assert AuditLog.query.filter_by(action="lock").count() == 0
+
+
+def test_non_string_login_fields_are_a_failed_login(client, add_user):
+    user = add_user("asha", "student")
+    for body in [{"username": "asha", "password": 123},
+                 {"username": "asha", "password": None},
+                 {"username": 5, "password": "pass1234"},
+                 {"username": ["asha"], "password": "pass1234"}]:
+        res = client.post("/auth/login", json=body)
+        assert res.status_code == 401
+        assert res.json["error"]["code"] == "invalid_credentials"
+    assert user.failed_logins == 2                     # the two bad passwords for asha
