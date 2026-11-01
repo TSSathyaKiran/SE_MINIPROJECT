@@ -34,10 +34,13 @@ def record_failed_login(user):
 @bp.post("/auth/login")
 def login():
     data = required(get_json(), "username", "password")
-    user = User.query.filter_by(username=data["username"].strip()).first()
+    # A number, null or list is never a valid username or password: treat it as a wrong login.
+    username = data["username"].strip() if isinstance(data["username"], str) else ""
+    password = data["password"] if isinstance(data["password"], str) else None
+    user = User.query.filter_by(username=username).first() if username else None
     if user is not None and is_locked(user):
         raise ApiError(423, "account_locked", "Account locked. Try again in 15 minutes")
-    if user is None or not check_password(data["password"], user.password_hash):
+    if user is None or password is None or not check_password(password, user.password_hash):
         if user is not None:
             record_failed_login(user)
         raise ApiError(401, "invalid_credentials", "Wrong username or password")
