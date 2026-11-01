@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block title %}Students · SRS-App{% endblock %}
 
@@ -51,7 +50,7 @@
 <h2 class="h5 mb-3">Existing students</h2>
 
 <div class="table-responsive">
-  <table class="table">
+  <table class="table align-middle">
     <thead>
       <tr>
         <th scope="col">Student number</th>
@@ -60,6 +59,7 @@
         <th scope="col">Program</th>
         <th scope="col">Semester</th>
         <th scope="col">Status</th>
+        <th scope="col">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -71,10 +71,61 @@
         <td>{{ student.program }}</td>
         <td>{{ student.semester }}</td>
         <td>{{ student.status }}</td>
+        <td>
+          <details class="mb-2">
+            <summary>Edit</summary>
+            <form data-api="/students/{{ student.id }}" data-method="PUT" data-reload
+                  data-success="Student updated." class="row g-2 mt-1">
+              <div class="col-12">
+                <label for="name-{{ student.id }}" class="form-label">Full name</label>
+                <input id="name-{{ student.id }}" name="name" class="form-control"
+                       value="{{ student.name }}" required>
+              </div>
+              <div class="col-12">
+                <label for="email-{{ student.id }}" class="form-label">Email</label>
+                <input id="email-{{ student.id }}" name="email" type="email"
+                       class="form-control" value="{{ student.email }}" required>
+              </div>
+              <div class="col-12">
+                <label for="program-{{ student.id }}" class="form-label">Program</label>
+                <input id="program-{{ student.id }}" name="program" class="form-control"
+                       value="{{ student.program }}" required>
+              </div>
+              <div class="col-6">
+                <label for="semester-{{ student.id }}" class="form-label">Semester</label>
+                <input id="semester-{{ student.id }}" name="semester" type="number"
+                       min="1" max="8" class="form-control" value="{{ student.semester }}" required>
+              </div>
+              <div class="col-6">
+                <label for="phone-{{ student.id }}" class="form-label">Phone</label>
+                <input id="phone-{{ student.id }}" name="phone" class="form-control"
+                       value="{{ student.phone or '' }}">
+              </div>
+              <div class="col-12">
+                <label for="address-{{ student.id }}" class="form-label">Address</label>
+                <input id="address-{{ student.id }}" name="address" class="form-control"
+                       value="{{ student.address or '' }}">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-sm btn-primary">Save changes</button>
+              </div>
+              <div class="col-12 form-msg" role="alert"></div>
+            </form>
+          </details>
+
+          {% if student.status == "active" %}
+          <form data-api="/students/{{ student.id }}" data-method="PUT" data-reload
+                data-success="Student deactivated." class="d-inline">
+            <input type="hidden" name="status" value="inactive">
+            <button class="btn btn-sm btn-outline-danger">Deactivate</button>
+            <div class="form-msg" role="alert"></div>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6">No students yet.</td>
+        <td colspan="7">No students yet.</td>
       </tr>
       {% endfor %}
     </tbody>

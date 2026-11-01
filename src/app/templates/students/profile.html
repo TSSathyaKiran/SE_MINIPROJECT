@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}My profile · SRS-App{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">My profile</h1>
+
+<div class="row g-2 mb-4">
+  <div class="col-md-4">
+    <label for="p-studentNo" class="form-label">Student number</label>
+    <input id="p-studentNo" class="form-control" value="{{ student.student_no }}" disabled>
+  </div>
+  <div class="col-md-8">
+    <label for="p-name" class="form-label">Full name</label>
+    <input id="p-name" class="form-control" value="{{ student.name }}" disabled>
+  </div>
+  <div class="col-md-8">
+    <label for="p-program" class="form-label">Program</label>
+    <input id="p-program" class="form-control" value="{{ student.program }}" disabled>
+  </div>
+  <div class="col-md-4">
+    <label for="p-semester" class="form-label">Semester</label>
+    <input id="p-semester" class="form-control" value="{{ student.semester }}" disabled>
+  </div>
+  <p class="form-text">These details are locked. Ask an administrator to change them.</p>
+</div>
+
+<h2 class="h5 mb-3">Contact details</h2>
+<form data-api="/students/{{ student.id }}" data-method="PUT" data-reload
+      data-success="Profile updated." class="row g-2">
+  <div class="col-md-6">
+    <label for="phone" class="form-label">Phone</label>
+    <input id="phone" name="phone" class="form-control" value="{{ student.phone or '' }}">
+  </div>
+  <div class="col-md-6">
+    <label for="address" class="form-label">Address</label>
+    <input id="address" name="address" class="form-control" value="{{ student.address or '' }}">
+  </div>
+  <div class="col-12">
+    <button class="btn btn-primary">Save</button>
+  </div>
+  <div class="col-12 form-msg" role="alert"></div>
+</form>
+{% endblock %}
