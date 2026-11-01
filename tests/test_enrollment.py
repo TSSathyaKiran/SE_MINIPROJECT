@@ -247,3 +247,36 @@ def test_tc_enr_03_enroll_and_drop_are_audited(client, login_as):
     actions = [a.action for a in
                AuditLog.query.filter_by(record_type="enrollment").order_by(AuditLog.id)]
     assert actions == ["enroll", "drop"]
+def test_tc_enr_02_courses_page_lists_sections_with_enroll_form(client, login_as):
+    section = make_section(code="CS150")
+    _, headers = login_as("student")
+    res = client.get("/ui/student/courses", headers=headers)
+    assert res.status_code == 200
+    assert b"CS150" in res.data
+    assert f'name="sectionId" value="{section.id}"'.encode() in res.data
+
+
+def test_tc_enr_03_courses_page_shows_drop_for_my_enrollment(client, login_as):
+    section = make_section(code="CS150")
+    student, headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+    res = client.get("/ui/student/courses", headers=headers)
+    assert f'data-api="/enroll/{enrollment_id}"'.encode() in res.data
+    assert b'name="sectionId"' not in res.data        # already enrolled: no Enroll form
+
+
+def test_tc_enr_03_courses_page_hides_drop_after_deadline(client, login_as):
+    set_deadline("2026-11-15")
+    clock.set_now(datetime(2026, 11, 16, 9, 0))
+    section = make_section(code="CS150")
+    student, headers = login_as("student")
+    enrolled(student, section)
+    res = client.get("/ui/student/courses", headers=headers)
+    assert b"Dropping is closed" in res.data
+    assert b'data-method="DELETE"' not in res.data
+
+
+def test_tc_enr_02_courses_page_is_for_students_only(client, login_as):
+    _, admin = login_as("admin")
+    assert client.get("/ui/student/courses", headers=admin).status_code == 403
+    assert client.get("/ui/student/courses").status_code == 302      # sent to the login page

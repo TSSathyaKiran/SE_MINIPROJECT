@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Courses and enrollment · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Courses and enrollment</h1>
+<p>
+  Add/drop deadline: <strong>{{ deadline }}</strong>.
+  {% if drop_open %}You can drop a course until that day.{% else %}Dropping is closed.{% endif %}
+</p>
+
+<h2 class="h5">My courses</h2>
+<div class="table-responsive mb-5">
+  <table class="table table-striped">
+    <caption class="visually-hidden">Sections I am enrolled in</caption>
+    <thead>
+      <tr><th scope="col">Course</th><th scope="col">Term</th><th scope="col">Section</th>
+          <th scope="col">Faculty</th><th scope="col">Credits</th><th scope="col">Action</th></tr>
+    </thead>
+    <tbody>
+      {% for e in my_enrollments %}
+      <tr>
+        <td>{{ e.code }} · {{ e.name }}</td><td>{{ e.term }}</td><td>{{ e.section }}</td>
+        <td>{{ e.faculty }}</td><td>{{ e.credits }}</td>
+        <td>
+          {% if drop_open %}
+          <form data-api="/enroll/{{ e.id }}" data-method="DELETE" data-reload
+                data-success="Course dropped.">
+            <button class="btn btn-outline-danger btn-sm"
+                    aria-label="Drop {{ e.code }} section {{ e.section }}">Drop</button>
+            <div class="form-msg mt-2" role="alert"></div>
+          </form>
+          {% else %}
+          <span class="text-muted">Closed</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">You are not enrolled in any course yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="h5">Sections open in {{ term.name if term else "the latest term" }}</h2>
+<div class="table-responsive">
+  <table class="table table-striped">
+    <caption class="visually-hidden">Sections available this term</caption>
+    <thead>
+      <tr><th scope="col">Course</th><th scope="col">Section</th><th scope="col">Faculty</th>
+          <th scope="col">Credits</th><th scope="col">Prerequisites</th>
+          <th scope="col">Seats</th><th scope="col">Action</th></tr>
+    </thead>
+    <tbody>
+      {% for s in sections %}
+      <tr>
+        <td>{{ s.code }} · {{ s.name }}</td><td>{{ s.section }}</td><td>{{ s.faculty }}</td>
+        <td>{{ s.credits }}</td>
+        <td>{{ s.prerequisites|join(", ") or "None" }}</td>
+        <td>{{ s.seats_taken }} / {{ s.capacity }}</td>
+        <td>
+          {% if s.enrolled %}
+          <span class="badge text-bg-success">Enrolled</span>
+          {% elif s.full %}
+          <span class="badge text-bg-secondary">Full</span>
+          {% else %}
+          <form data-api="/enroll" data-reload data-success="Enrolled.">
+            <input type="hidden" name="sectionId" value="{{ s.id }}">
+            <button class="btn btn-primary btn-sm"
+                    aria-label="Enroll in {{ s.code }} section {{ s.section }}">Enroll</button>
+            <div class="form-msg mt-2" role="alert"></div>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No sections are open yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
