@@ -143,3 +143,12 @@ def update_student(student_id):
 def students_page():
     return render_template("students/admin.html",
                            students=Student.query.order_by(Student.student_no).all())
+
+
+@bp.get("/ui/student/profile")
+@require_role("student")
+def profile_page():
+    student = Student.query.filter_by(user_id=current_user().id).first()
+    if student is None:
+        raise ApiError(404, "not_found", "No student record is linked to this login")
+    return render_template("students/profile.html", student=student)
