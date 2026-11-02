@@ -9,7 +9,7 @@
   GET  /ui/student/profile    student page             #12
   GET  /ui/faculty/search     faculty page             #13
 """
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
 from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
@@ -21,6 +21,7 @@ bp = Blueprint("students", __name__)
 
 ADMIN_FIELDS = ("name", "email", "phone", "address", "program", "semester", "status")
 SELF_FIELDS = ("phone", "address")
+SEARCH_LIMIT = 50
 
 
 def next_student_no():
@@ -32,6 +33,12 @@ def student_json(s):
     return {"id": s.id, "studentNo": s.student_no, "name": s.name, "email": s.email,
             "phone": s.phone, "address": s.address, "program": s.program,
             "semester": s.semester, "status": s.status}
+
+
+def search_json(s):
+    """Search results leave out email, phone and address (PII)."""
+    return {"id": s.id, "studentNo": s.student_no, "name": s.name,
+            "program": s.program, "semester": s.semester, "status": s.status}
 
 
 @bp.post("/students")
@@ -65,6 +72,21 @@ def create_student():
     audit("create", "student", student.id)
     db.session.commit()
     return jsonify(id=student.id, studentNo=student.student_no, status="created"), 201
+
+
+@bp.get("/students/search")
+@require_role("admin", "faculty")
+def search_students():
+    q = request.args.get("q", "").strip()
+    if not q:
+        raise ApiError(400, "missing_field", "Enter a student number or name to search")
+    matches = (Student.query
+               .filter(db.or_(Student.student_no.icontains(q, autoescape=True),
+                              Student.name.icontains(q, autoescape=True)))
+               .order_by(Student.student_no)
+               .limit(SEARCH_LIMIT)
+               .all())
+    return jsonify(students=[search_json(s) for s in matches])
 
 
 @bp.get("/students/<int:student_id>")
