@@ -1,0 +1,75 @@
+<form id="student-search" class="row g-2 mb-3" role="search">
+  <div class="col-md-6">
+    <label for="search-q" class="form-label">Search by student number or name</label>
+    <input id="search-q" name="q" class="form-control" required>
+  </div>
+  <div class="col-auto align-self-end">
+    <button class="btn btn-primary">Search</button>
+  </div>
+  <div class="col-12" id="search-msg" role="alert"></div>
+</form>
+
+<div class="table-responsive">
+  <table class="table mb-4" id="search-results" hidden>
+    <thead>
+      <tr>
+        <th scope="col">Student number</th>
+        <th scope="col">Name</th>
+        <th scope="col">Program</th>
+        <th scope="col">Semester</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById("student-search");
+  var msg = document.getElementById("search-msg");
+  var table = document.getElementById("search-results");
+  var body = table.querySelector("tbody");
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var q = document.getElementById("search-q").value.trim();
+    body.textContent = "";
+    table.hidden = true;
+    if (!q) {
+      msg.textContent = "Enter a student number or name.";
+      return;
+    }
+    msg.textContent = "Searching...";
+    fetch("/students/search?q=" + encodeURIComponent(q), {headers: {"Accept": "application/json"}})
+      .then(function (res) {
+        return res.json().then(function (data) { return {ok: res.ok, data: data}; });
+      })
+      .then(function (r) {
+        if (!r.ok) {
+          msg.textContent = (r.data.error && r.data.error.message) || "Search failed.";
+          return;
+        }
+        var students = r.data.students;
+        if (!students.length) {
+          msg.textContent = "No students found.";
+          return;
+        }
+        msg.textContent = students.length + " student(s) found.";
+        students.forEach(function (s) {
+          var tr = document.createElement("tr");
+          [s.studentNo, s.name, s.program, s.semester, s.status].forEach(function (v) {
+            var td = document.createElement("td");
+            td.textContent = v;
+            tr.appendChild(td);
+          });
+          body.appendChild(tr);
+        });
+        table.hidden = false;
+      })
+      .catch(function () {
+        msg.textContent = "Search failed. Please try again.";
+      });
+  });
+})();
+</script>
