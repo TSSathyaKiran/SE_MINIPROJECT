@@ -174,3 +174,9 @@ def profile_page():
     if student is None:
         raise ApiError(404, "not_found", "No student record is linked to this login")
     return render_template("students/profile.html", student=student)
+
+
+@bp.get("/ui/faculty/search")
+@require_role("admin", "faculty")
+def search_page():
+    return render_template("students/search.html")
