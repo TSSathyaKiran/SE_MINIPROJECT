@@ -21,6 +21,22 @@ bp = Blueprint("attendance", __name__)
 STATUSES = ("present", "absent", "late")
 
 
+def attendance_summary(enrollment):
+    """Present/absent/late counts and percentage for one enrollment.
+
+    percentage = round(present / total * 100, 1), and 0 when there are no
+    sessions yet. Late never counts as present (docs/DEVIATIONS.md).
+    """
+    counts = {status: 0 for status in STATUSES}
+    for row in Attendance.query.filter_by(enrollment_id=enrollment.id):
+        if row.status in counts:
+            counts[row.status] += 1
+    total = sum(counts.values())
+    percentage = round(counts["present"] / total * 100, 1) if total else 0
+    return {"present": counts["present"], "absent": counts["absent"],
+            "late": counts["late"], "total": total, "percentage": percentage}
+
+
 @bp.get("/ui/faculty/attendance")
 @require_role("faculty")
 def attendance_page():
