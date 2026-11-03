@@ -85,6 +85,16 @@ def attendance_summary_api(student_id):
                    **attendance_summary(e)} for e in enrollments])
 
 
+@bp.get("/ui/student/attendance")
+@require_role("student")
+def student_attendance_page():
+    """My attendance percentage, one table per course."""
+    student = current_user().student
+    enrollments = _current_enrollments(student) if student else []
+    rows = [{"enrollment": e, "summary": attendance_summary(e)} for e in enrollments]
+    return render_template("attendance/student.html", rows=rows)
+
+
 @bp.get("/ui/faculty/attendance")
 @require_role("faculty")
 def attendance_page():
