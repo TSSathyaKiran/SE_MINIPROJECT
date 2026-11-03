@@ -1,5 +1,9 @@
 from datetime import datetime
 
+import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import DatabaseError
+
 from app.core import clock
 from app.extensions import db
 from app.models import AuditLog, Course, Enrollment, Section, Term
@@ -78,3 +82,39 @@ def test_audit_logs_admin_only_and_bad_dates(client, login_as):
     assert client.get("/audit-logs?from=20-10-2026", headers=admin_h).status_code == 400
     res = client.get("/audit-logs?from=2026-10-21&to=2026-10-20", headers=admin_h)
     assert res.status_code == 400
+
+
+# ---- TC-Sec-07: audit rows cannot be changed from the API, the ORM or raw SQL ----
+
+def test_tc_sec_07_audit_rows_cannot_be_changed(client, login_as):
+    _, admin_h = login_as("admin")
+    client.post("/terms", json={"name": "2026-ODD"}, headers=admin_h)
+    log = AuditLog.query.one()
+    before = (log.user_id, log.action, log.record_type, log.record_id, log.timestamp)
+
+    for method in (client.put, client.patch, client.delete):            # API
+        assert method("/audit-logs", json={}, headers=admin_h).status_code == 405
+
+    log.action = "nothing happened"                                      # ORM update
+    with pytest.raises(PermissionError):
+        db.session.commit()
+    db.session.rollback()
+    db.session.delete(log)                                               # ORM delete
+    with pytest.raises(PermissionError):
+        db.session.commit()
+    db.session.rollback()
+
+    for sql in ("UPDATE audit_logs SET action = 'x'", "DELETE FROM audit_logs"):  # raw SQL
+        with pytest.raises(DatabaseError, match="append-only"):
+            db.session.execute(text(sql))
+        db.session.rollback()
+
+    log = AuditLog.query.one()
+    assert (log.user_id, log.action, log.record_type, log.record_id, log.timestamp) == before
+
+
+def test_new_audit_rows_can_still_be_added(client, login_as):
+    _, admin_h = login_as("admin")
+    client.post("/terms", json={"name": "T1"}, headers=admin_h)
+    client.post("/terms", json={"name": "T2"}, headers=admin_h)
+    assert AuditLog.query.count() == 2
