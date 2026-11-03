@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}My attendance · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">My attendance</h1>
+
+{% for row in rows %}
+<h2 class="h5">{{ row.enrollment.section.course.code }} · {{ row.enrollment.section.course.name }} · Section {{ row.enrollment.section.name }} ({{ row.enrollment.section.term.name }})</h2>
+<div class="table-responsive mb-4">
+  <table class="table table-striped">
+    <caption class="visually-hidden">Your attendance for {{ row.enrollment.section.course.code }} section {{ row.enrollment.section.name }}</caption>
+    <thead>
+      <tr><th scope="col">Present</th><th scope="col">Absent</th><th scope="col">Late</th>
+          <th scope="col">Total sessions</th><th scope="col">Percentage</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ row.summary.present }}</td>
+        <td>{{ row.summary.absent }}</td>
+        <td>{{ row.summary.late }}</td>
+        <td>{{ row.summary.total }}</td>
+        <td>{{ row.summary.percentage }}%</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p>You are not enrolled in any sections yet.</p>
+{% endfor %}
+{% endblock %}
