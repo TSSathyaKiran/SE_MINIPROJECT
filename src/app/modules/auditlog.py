@@ -7,7 +7,7 @@ Writing entries is already done: core/audit.py.
 """
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, render_template, request
 
 from ..core.errors import ApiError
 from ..core.security import require_role
@@ -52,3 +52,16 @@ def list_logs():
     return jsonify(logs=find_logs(args.get("module", "").strip(),
                                   args.get("from", "").strip(),
                                   args.get("to", "").strip()))
+
+
+@bp.get("/ui/admin/audit")
+@require_role("admin")
+def audit_page():
+    filters = {"module": request.args.get("module", "").strip(),
+               "date_from": request.args.get("from", "").strip(),
+               "date_to": request.args.get("to", "").strip()}
+    modules = [m for (m,) in db.session.query(AuditLog.record_type).distinct()
+               .order_by(AuditLog.record_type)]
+    return render_template("auditlog/audit.html", filters=filters, modules=modules,
+                           logs=find_logs(filters["module"], filters["date_from"],
+                                          filters["date_to"]))

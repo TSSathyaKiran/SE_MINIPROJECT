@@ -118,3 +118,16 @@ def test_new_audit_rows_can_still_be_added(client, login_as):
     client.post("/terms", json={"name": "T1"}, headers=admin_h)
     client.post("/terms", json={"name": "T2"}, headers=admin_h)
     assert AuditLog.query.count() == 2
+
+
+def test_admin_audit_page_lists_and_filters(client, login_as):
+    admin, admin_h = login_as("admin")
+    _, student_h = login_as("student")
+    client.post("/terms", json={"name": "2026-ODD"}, headers=admin_h)
+    client.post("/courses", json={"code": "CS999", "name": "X", "credits": 3}, headers=admin_h)
+
+    html = client.get("/ui/admin/audit", headers=admin_h).get_data(as_text=True)
+    assert admin.username in html and "<td>term</td>" in html and "<td>course</td>" in html
+    html = client.get("/ui/admin/audit?module=term", headers=admin_h).get_data(as_text=True)
+    assert "<td>term</td>" in html and "<td>course</td>" not in html
+    assert client.get("/ui/admin/audit", headers=student_h).status_code == 403
