@@ -7,13 +7,16 @@
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from flask import Blueprint
+from flask import Blueprint, send_file
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from ..models import Grade
+from ..core.errors import ApiError
+from ..core.security import current_user, require_login
+from ..extensions import db
+from ..models import Grade, Student
 
 bp = Blueprint("reports", __name__)
 
@@ -89,3 +92,23 @@ def build_transcript_pdf(data):
     buf = BytesIO()
     SimpleDocTemplate(buf, pagesize=A4, title="Unofficial Transcript").build(story)
     return buf.getvalue()
+
+
+@bp.get("/reports/transcript/<int:student_id>")
+@require_login
+def transcript(student_id):
+    user = current_user()
+    if user.role == "student":
+        own = Student.query.filter_by(user_id=user.id).first()
+        if own is None or own.id != student_id:
+            raise ApiError(403, "forbidden", "You can only view your own transcript")
+    elif user.role != "admin":
+        raise ApiError(403, "forbidden", "Only the student or an admin can view a transcript")
+
+    student = db.session.get(Student, student_id)
+    if student is None:
+        raise ApiError(404, "not_found", "Student not found")
+
+    pdf = build_transcript_pdf(transcript_data(student))
+    return send_file(BytesIO(pdf), mimetype="application/pdf",
+                     download_name=f"transcript-{student.student_no}.pdf")
