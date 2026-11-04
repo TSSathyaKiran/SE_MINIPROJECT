@@ -1,8 +1,9 @@
-"""Faculty marks attendance: TC-Att-01 (issue #7)."""
+"""Faculty marks attendance: TC-Att-01 (issue #7). Issue #8 tests are at the bottom."""
 import re
 from datetime import date
 
 from app.extensions import db
+from app.modules.attendance import attendance_summary
 from app.models import (Attendance, AuditLog, Course, Enrollment, Section, Term)
 
 
@@ -166,3 +167,144 @@ def test_tc_att_01_faculty_menu_link_is_live(client, login_as):
     res = client.get("/ui/faculty")
     assert res.status_code == 200
     assert b'href="/ui/faculty/attendance"' in res.data
+
+
+# Issue #8: student attendance percentage (TC-Att-02)
+
+
+def _sessions(section, student, statuses):
+    """Store one attendance row per status, on consecutive days in Oct 2026."""
+    enrollment = Enrollment.query.filter_by(
+        section_id=section.id, student_id=student.id).one()
+    for n, status in enumerate(statuses, start=1):
+        db.session.add(Attendance(enrollment_id=enrollment.id,
+                                  date=date(2026, 10, n), status=status))
+    db.session.commit()
+    return enrollment
+
+
+def _login_headers(client, user, password="pass1234"):
+    res = client.post("/auth/login", json={"username": user.username, "password": password})
+    assert res.status_code == 200, res.json
+    return {"Authorization": f"Bearer {res.json['token']}"}
+
+
+def test_tc_att_02_summary_8_present_of_10_is_80_percent(client, login_as, add_user):
+    _, _, student, section = _setup(login_as, add_user)
+    enrollment = _sessions(section, student, ["present"] * 8 + ["absent", "late"])
+    summary = attendance_summary(enrollment)
+    assert summary == {"present": 8, "absent": 1, "late": 1,
+                       "total": 10, "percentage": 80.0}
+
+
+def test_tc_att_02_summary_is_zero_without_sessions(client, login_as, add_user):
+    _, _, student, section = _setup(login_as, add_user)
+    enrollment = Enrollment.query.filter_by(
+        section_id=section.id, student_id=student.id).one()
+    assert attendance_summary(enrollment) == {"present": 0, "absent": 0, "late": 0,
+                                              "total": 0, "percentage": 0}
+
+
+def test_tc_att_02_own_student_reads_their_summary(client, login_as, add_user):
+    _, _, student, section = _setup(login_as, add_user)
+    _sessions(section, student, ["present"] * 8 + ["absent"] * 2)
+    headers = _login_headers(client, student.user)
+    res = client.get(f"/attendance/{student.id}/summary", headers=headers)
+    assert res.status_code == 200
+    assert res.json == {"studentId": student.id, "sections": [
+        {"sectionId": section.id, "courseCode": "CS999",
+         "courseName": "Software Testing", "section": "A",
+         "present": 8, "absent": 2, "late": 0, "total": 10, "percentage": 80.0}]}
+    res = client.get(f"/attendance/{student.id}/summary?sectionId={section.id}",
+                     headers=headers)
+    assert res.status_code == 200
+    assert len(res.json["sections"]) == 1
+
+
+def test_tc_att_02_summary_is_own_student_only(client, login_as, add_user):
+    _, faculty_headers, student, section = _setup(login_as, add_user)
+    _sessions(section, student, ["present"] * 8 + ["absent"] * 2)
+    url = f"/attendance/{student.id}/summary?sectionId={section.id}"
+
+    _, other_student_headers = login_as("student")
+    assert client.get(url, headers=other_student_headers).status_code == 403
+    assert client.get(url).status_code == 401
+
+    # the section's faculty and an admin may read it
+    assert client.get(url, headers=faculty_headers).status_code == 200
+    _, admin_headers = login_as("admin")
+    assert client.get(url, headers=admin_headers).status_code == 200
+
+    # another faculty may not
+    _, other_faculty_headers = login_as("faculty")
+    assert client.get(url, headers=other_faculty_headers).status_code == 403
+
+
+def test_tc_att_02_summary_unknown_student_and_section(client, login_as):
+    _, headers = login_as("admin")
+    assert client.get("/attendance/9999/summary", headers=headers).status_code == 404
+
+
+def test_tc_att_02_page_redirects_when_logged_out(client):
+    res = client.get("/ui/student/attendance")
+    assert res.status_code == 302
+    assert res.headers["Location"].endswith("/ui/login")
+
+
+def test_tc_att_02_page_is_student_only(client, login_as):
+    faculty, _ = login_as("faculty")
+    _login_page(client, faculty)
+    assert client.get("/ui/student/attendance").status_code == 403
+    admin, _ = login_as("admin")
+    _login_page(client, admin)
+    assert client.get("/ui/student/attendance").status_code == 403
+
+
+def test_tc_att_02_page_shows_percentage_per_course(client, login_as, add_user):
+    _, _, student, section = _setup(login_as, add_user)
+    _sessions(section, student, ["present"] * 8 + ["absent", "late"])
+    _login_page(client, student.user)
+    res = client.get("/ui/student/attendance")
+    assert res.status_code == 200
+    assert b"CS999" in res.data
+    assert b"Software Testing" in res.data
+    assert b"80.0%" in res.data
+
+
+def test_tc_att_02_student_menu_link_is_live(client, login_as):
+    student, _ = login_as("student")
+    _login_page(client, student)
+    res = client.get("/ui/student")
+    assert res.status_code == 200
+    assert b'href="/ui/student/attendance"' in res.data
+
+
+def test_tc_att_02_faculty_without_section_sees_only_their_own_sections(
+        client, login_as, add_user):
+    faculty, faculty_headers, student, section = _setup(login_as, add_user)
+    _sessions(section, student, ["present"] * 8 + ["absent"] * 2)
+    # a second section of another course, taught by someone else
+    other_faculty = add_user("prof2", "faculty")
+    course = Course(code="CS998", name="Databases", credits=4)
+    db.session.add(course)
+    db.session.flush()
+    term = Term.query.one()
+    other_section = Section(course_id=course.id, term_id=term.id, name="B",
+                            faculty_id=other_faculty.id, capacity=30)
+    db.session.add(other_section)
+    db.session.flush()
+    db.session.add(Enrollment(student_id=student.id, section_id=other_section.id))
+    db.session.commit()
+    _sessions(other_section, student, ["present"] * 5)
+
+    res = client.get(f"/attendance/{student.id}/summary", headers=faculty_headers)
+    assert res.status_code == 200
+    sections = res.json["sections"]
+    assert [s["sectionId"] for s in sections] == [section.id]
+    assert all(s["courseCode"] != "CS998" for s in sections)
+
+    # the student themself still gets both sections
+    student_headers = _login_headers(client, student.user)
+    res = client.get(f"/attendance/{student.id}/summary", headers=student_headers)
+    assert res.status_code == 200
+    assert len(res.json["sections"]) == 2

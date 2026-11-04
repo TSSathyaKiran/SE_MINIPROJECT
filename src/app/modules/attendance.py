@@ -12,13 +12,87 @@ from flask import Blueprint, jsonify, render_template, request
 from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
-from ..core.security import current_user, require_role
+from ..core.security import current_user, require_login, require_role
 from ..extensions import db
 from ..models import Attendance, Course, Enrollment, Section, Student
 
 bp = Blueprint("attendance", __name__)
 
 STATUSES = ("present", "absent", "late")
+
+
+def attendance_summary(enrollment):
+    """Present/absent/late counts and percentage for one enrollment.
+
+    percentage = round(present / total * 100, 1), and 0 when there are no
+    sessions yet. Late never counts as present (docs/DEVIATIONS.md).
+    """
+    counts = {status: 0 for status in STATUSES}
+    for row in Attendance.query.filter_by(enrollment_id=enrollment.id):
+        if row.status in counts:
+            counts[row.status] += 1
+    total = sum(counts.values())
+    percentage = round(counts["present"] / total * 100, 1) if total else 0
+    return {"present": counts["present"], "absent": counts["absent"],
+            "late": counts["late"], "total": total, "percentage": percentage}
+
+
+def _current_enrollments(student, section=None):
+    """The student's enrolled enrollments, optionally limited to one section."""
+    query = Enrollment.query.filter_by(student_id=student.id, status="enrolled")
+    if section is not None:
+        query = query.filter_by(section_id=section.id)
+    return (query.join(Enrollment.section).join(Section.course)
+            .order_by(Course.code, Section.name).all())
+
+
+@bp.get("/attendance/<int:student_id>/summary")
+@require_login
+def attendance_summary_api(student_id):
+    """Summary for one section (?sectionId=) or every current enrollment.
+
+    Only the student themself, the section's faculty, or an admin may read it.
+    """
+    student = db.session.get(Student, student_id)
+    if student is None:
+        raise ApiError(404, "not_found", "Unknown student")
+    section = None
+    if "sectionId" in request.args:
+        section = db.session.get(Section, as_int(request.args["sectionId"], "sectionId"))
+        if section is None:
+            raise ApiError(404, "not_found", "Unknown section")
+
+    user = current_user()
+    enrollments = _current_enrollments(student, section)
+    if user.role == "faculty":
+        if section is not None:
+            allowed = section.faculty_id == user.id
+        else:
+            # a faculty only ever sees their own sections, never the whole student
+            allowed = any(e.section.faculty_id == user.id for e in enrollments)
+            enrollments = [e for e in enrollments if e.section.faculty_id == user.id]
+    else:
+        allowed = user.role == "admin" or student.user_id == user.id
+    if not allowed:
+        raise ApiError(403, "forbidden", "You are not allowed to see this summary")
+
+    return jsonify(
+        studentId=student.id,
+        sections=[{"sectionId": e.section_id,
+                   "courseCode": e.section.course.code,
+                   "courseName": e.section.course.name,
+                   "section": e.section.name,
+                   **attendance_summary(e)} for e in enrollments])
+
+
+@bp.get("/ui/student/attendance")
+@require_role("student")
+def student_attendance_page():
+    """My attendance percentage, one table per course."""
+    student = current_user().student
+    enrollments = _current_enrollments(student) if student else []
+    rows = [{"enrollment": e, "summary": attendance_summary(e)} for e in enrollments]
+    return render_template("attendance/student.html", rows=rows)
 
 
 @bp.get("/ui/faculty/attendance")
