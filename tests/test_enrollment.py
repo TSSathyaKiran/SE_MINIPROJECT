@@ -302,3 +302,29 @@ def test_tc_enr_03_dropping_one_course_leaves_the_other_untouched(client, login_
     assert res.status_code == 200
     assert db.session.get(Enrollment, first).status == "dropped"
     assert db.session.get(Enrollment, second).status == "enrolled"
+def test_tc_enr_03_graded_course_cannot_be_dropped(client, login_as):
+    section = make_section(code="CS101", term_name="2025-EVEN")
+    student, headers = login_as("student")
+    enrollment_id = enrolled(student, section)
+    db.session.add(Grade(student_id=student.student.id, section_id=section.id,
+                         grade="A+", grade_point=9))
+    db.session.commit()
+    res = client.delete(f"/enroll/{enrollment_id}", headers=headers)
+    assert res.status_code == 403
+    assert res.json["error"]["code"] == "course_completed"
+    assert db.session.get(Enrollment, enrollment_id).status == "enrolled"
+
+
+def test_tc_enr_03_page_shows_completed_instead_of_drop_for_graded_course(client, login_as):
+    done = make_section(code="CS101", term_name="2025-EVEN")
+    current = make_section(code="CS102", term_name="2026-ODD")
+    student, headers = login_as("student")
+    done_id = enrolled(student, done)
+    current_id = enrolled(student, current)
+    db.session.add(Grade(student_id=student.student.id, section_id=done.id,
+                         grade="A+", grade_point=9))
+    db.session.commit()
+    page = client.get("/ui/student/courses", headers=headers).data
+    assert b"Completed" in page
+    assert f'data-api="/enroll/{done_id}"'.encode() not in page     # no Drop for a graded course
+    assert f'data-api="/enroll/{current_id}"'.encode() in page      # still droppable

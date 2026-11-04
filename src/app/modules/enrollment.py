@@ -92,6 +92,11 @@ def drop(enrollment_id):
         raise ApiError(403, "forbidden", "This is not your enrollment")
     if enrollment.status == "dropped":
         raise ApiError(409, "already_dropped", "You have already dropped this section")
+    # A course with a final grade is part of the transcript and cannot be dropped.
+    if Grade.query.filter_by(student_id=student.id,
+                             section_id=enrollment.section_id).first():
+        raise ApiError(403, "course_completed",
+                       "This course already has a final grade and cannot be dropped")
     # The last day itself is still allowed; the deadline comes from admin settings.
     if clock.today() > get_date("add_drop_deadline"):
         raise ApiError(403, "drop_closed", "The add/drop deadline has passed")
@@ -134,7 +139,12 @@ def courses_page():
     mine = (Enrollment.query.filter_by(student_id=student.id, status="enrolled")
             .order_by(Enrollment.id).all())
     my_section_ids = {e.section_id for e in mine}
-    my_enrollments = [{**_section_view(e.section), "id": e.id} for e in mine]
+    graded_section_ids = {g.section_id for g in
+                          Grade.query.filter_by(student_id=student.id).all()}
+    # "id" comes last on purpose: the Drop button needs the enrollment id,
+    # and _section_view() also has an "id" (the section id) that must not win.
+    my_enrollments = [{**_section_view(e.section), "id": e.id,
+                       "graded": e.section_id in graded_section_ids} for e in mine]
 
     # "Latest term" = the term created most recently
     term = Term.query.order_by(Term.id.desc()).first()

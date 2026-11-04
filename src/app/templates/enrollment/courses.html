@@ -21,7 +21,9 @@
         <td>{{ e.code }} · {{ e.name }}</td><td>{{ e.term }}</td><td>{{ e.section }}</td>
         <td>{{ e.faculty }}</td><td>{{ e.credits }}</td>
         <td>
-          {% if drop_open %}
+          {% if e.graded %}
+          <span class="badge text-bg-secondary">Completed</span>
+          {% elif drop_open %}
           <form data-api="/enroll/{{ e.id }}" data-method="DELETE" data-reload
                 data-success="Course dropped.">
             <button class="btn btn-outline-danger btn-sm"
