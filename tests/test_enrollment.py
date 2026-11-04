@@ -280,3 +280,25 @@ def test_tc_enr_02_courses_page_is_for_students_only(client, login_as):
     _, admin = login_as("admin")
     assert client.get("/ui/student/courses", headers=admin).status_code == 403
     assert client.get("/ui/student/courses").status_code == 302      # sent to the login page
+def test_tc_enr_03_drop_button_uses_the_enrollment_id(client, login_as):
+    # Three sections (ids 1, 2, 3) but only two enrollments (ids 1, 2), so ids differ.
+    sections = [make_section(code=f"CS1{n}0") for n in (5, 6, 7)]
+    student, headers = login_as("student")
+    enrollment_ids = [enrolled(student, s) for s in sections[1:]]
+    page = client.get("/ui/student/courses", headers=headers).data
+    for enrollment_id in enrollment_ids:
+        assert f'data-api="/enroll/{enrollment_id}"'.encode() in page
+    wrong_ids = {s.id for s in sections[1:]} - set(enrollment_ids)   # section ids only
+    assert wrong_ids
+    for section_id in wrong_ids:
+        assert f'data-api="/enroll/{section_id}"'.encode() not in page
+
+
+def test_tc_enr_03_dropping_one_course_leaves_the_other_untouched(client, login_as):
+    sections = [make_section(code=f"CS1{n}0") for n in (5, 6)]
+    student, headers = login_as("student")
+    first, second = [enrolled(student, s) for s in sections]
+    res = client.delete(f"/enroll/{first}", headers=headers)
+    assert res.status_code == 200
+    assert db.session.get(Enrollment, first).status == "dropped"
+    assert db.session.get(Enrollment, second).status == "enrolled"

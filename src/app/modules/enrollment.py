@@ -134,7 +134,7 @@ def courses_page():
     mine = (Enrollment.query.filter_by(student_id=student.id, status="enrolled")
             .order_by(Enrollment.id).all())
     my_section_ids = {e.section_id for e in mine}
-    my_enrollments = [{"id": e.id, **_section_view(e.section)} for e in mine]
+    my_enrollments = [{**_section_view(e.section), "id": e.id} for e in mine]
 
     # "Latest term" = the term created most recently
     term = Term.query.order_by(Term.id.desc()).first()
