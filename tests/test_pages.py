@@ -22,10 +22,15 @@ def test_pages_redirect_to_login_when_logged_out(client):
     assert res.headers["Location"].endswith("/ui/login")
 
 
-def test_dashboard_shows_built_pages_and_coming_soon(client, login_as):
+def test_dashboard_shows_built_pages_and_coming_soon(client, login_as, monkeypatch):
+    # Every real admin page gets built eventually, so add one that isn't to check "Coming soon".
+    from app.modules import home
+    monkeypatch.setitem(home.MENU, "admin",
+                        home.MENU["admin"] + [("Not built", "/ui/admin/not-built-yet")])
     _, admin = login_as("admin")
     res = client.get("/ui/admin", headers=admin)
     assert b'href="/ui/admin/terms"' in res.data
+    assert b'href="/ui/admin/not-built-yet"' not in res.data
     assert b"Coming soon" in res.data
 
 
