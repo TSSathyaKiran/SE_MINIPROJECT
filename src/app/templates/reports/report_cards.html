@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Report Cards · SRS-App{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Generate Official Report Card</h1>
+
+<div class="card shadow-sm" style="max-width: 40rem;">
+  <div class="card-body">
+    <p class="text-muted">
+      Select a student and academic term to generate an official report card PDF.
+    </p>
+
+    {% if students and terms %}
+    <form action="/reports/report-card" method="get">
+      <div class="mb-3">
+        <label for="studentId" class="form-label">Student</label>
+        <select id="studentId" name="studentId" class="form-select" required>
+          <option value="">Select a student</option>
+          {% for student in students %}
+          <option value="{{ student.id }}">
+            {{ student.student_no }} · {{ student.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label for="termId" class="form-label">Academic term</label>
+        <select id="termId" name="termId" class="form-select" required>
+          <option value="">Select a term</option>
+          {% for term in terms %}
+          <option value="{{ term.id }}">{{ term.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        Download report card PDF
+      </button>
+    </form>
+    {% else %}
+    <p class="mb-0">
+      {% if not students %}
+      No student records are available yet.
+      {% else %}
+      No academic terms are available yet.
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

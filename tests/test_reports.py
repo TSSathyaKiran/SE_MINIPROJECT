@@ -179,3 +179,28 @@ def test_tc_rep_02_invalid_report_card_ids(client, login_as):
         "/reports/report-card?studentId=1&termId=9999",
         headers=admin_headers,
     ).status_code == 404
+
+
+def test_tc_rep_02_admin_report_cards_page(client, login_as):
+    _, admin_headers = login_as("admin")
+    _, student_headers = login_as("student")
+    _, faculty_headers = login_as("faculty")
+
+    db.session.add(Term(name="2026-ODD"))
+    db.session.commit()
+
+    admin = client.get("/ui/admin/report-cards", headers=admin_headers)
+    assert admin.status_code == 200
+    assert b"Generate Official Report Card" in admin.data
+    assert b"Select a student" in admin.data
+    assert b"Select a term" in admin.data
+
+    assert client.get(
+        "/ui/admin/report-cards", headers=student_headers
+    ).status_code == 403
+
+    assert client.get(
+        "/ui/admin/report-cards", headers=faculty_headers
+    ).status_code == 403
+
+    assert client.get("/ui/admin/report-cards").status_code == 302

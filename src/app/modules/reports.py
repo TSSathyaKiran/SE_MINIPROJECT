@@ -7,7 +7,7 @@
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from flask import Blueprint, request, send_file
+from flask import Blueprint, render_template, request, send_file
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -246,4 +246,17 @@ def report_card():
         BytesIO(pdf),
         mimetype="application/pdf",
         download_name=f"report-card-{student.student_no}-{term.name}.pdf",
+    )
+
+
+@bp.get("/ui/admin/report-cards")
+@require_role("admin")
+def report_cards_page():
+    """Admin page for selecting a student and term for a report card."""
+    students = Student.query.order_by(Student.student_no).all()
+    terms = Term.query.order_by(Term.name.desc()).all()
+    return render_template(
+        "reports/report_cards.html",
+        students=students,
+        terms=terms,
     )
