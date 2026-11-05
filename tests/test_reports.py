@@ -2,7 +2,7 @@
 
 from app.extensions import db
 from app.models import Course, Grade, Section, Student, Term
-from app.modules.reports import build_transcript_pdf, transcript_data
+from app.modules.reports import (build_transcript_pdf, transcript_data, report_card_data, build_report_card_pdf)
 
 
 def _add_grade(student, term, code, name, credits, grade, point):
@@ -101,3 +101,81 @@ def test_tc_rep_01_transcript_access(client, login_as):
     assert faculty.status_code == 403
 
     assert client.get(f"/reports/transcript/{student.id}").status_code == 401
+
+
+def test_tc_rep_02_admin_report_card_pdf(client, login_as):
+    student_user, _ = login_as("student")
+    _, admin_headers = login_as("admin")
+    student = student_user.student
+    _add_transcript_data(student)
+
+    term = Term.query.filter_by(name="2026-ODD").one()
+
+    response = client.get(
+        f"/reports/report-card?studentId={student.id}&termId={term.id}",
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data.startswith(b"%PDF")
+    assert "report-card" in response.headers["Content-Disposition"]
+
+
+def test_tc_rep_02_report_card_data_contains_selected_term(login_as):
+    student_user, _ = login_as("student")
+    student = student_user.student
+    _add_transcript_data(student)
+
+    term = Term.query.filter_by(name="2026-ODD").one()
+    data = report_card_data(student, term)
+
+    assert data["term"] == "2026-ODD"
+    assert [course["code"] for course in data["courses"]] == [
+        "CS101", "MA101"
+    ]
+    assert data["gpa"] == 8.57
+
+    pdf = build_report_card_pdf(data)
+    assert pdf.startswith(b"%PDF")
+
+
+def test_tc_rep_02_only_admin_can_download_report_card(client, login_as):
+    student_user, student_headers = login_as("student")
+    _, faculty_headers = login_as("faculty")
+    _, admin_headers = login_as("admin")
+
+    student = student_user.student
+    _add_transcript_data(student)
+    term = Term.query.filter_by(name="2026-ODD").one()
+
+    url = f"/reports/report-card?studentId={student.id}&termId={term.id}"
+
+    assert client.get(url, headers=student_headers).status_code == 403
+    assert client.get(url, headers=faculty_headers).status_code == 403
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=admin_headers).status_code == 200
+
+
+def test_tc_rep_02_invalid_report_card_ids(client, login_as):
+    _, admin_headers = login_as("admin")
+
+    assert client.get(
+        "/reports/report-card",
+        headers=admin_headers,
+    ).status_code == 400
+
+    assert client.get(
+        "/reports/report-card?studentId=abc&termId=1",
+        headers=admin_headers,
+    ).status_code == 400
+
+    assert client.get(
+        "/reports/report-card?studentId=9999&termId=1",
+        headers=admin_headers,
+    ).status_code == 404
+
+    assert client.get(
+        "/reports/report-card?studentId=1&termId=9999",
+        headers=admin_headers,
+    ).status_code == 404

@@ -7,16 +7,16 @@
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from flask import Blueprint, send_file
+from flask import Blueprint, request, send_file
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from ..core.errors import ApiError
-from ..core.security import current_user, require_login
+from ..core.security import current_user, require_login, require_role
 from ..extensions import db
-from ..models import Grade, Student
+from ..models import Grade, Section, Student, Term
 
 bp = Blueprint("reports", __name__)
 
@@ -112,3 +112,138 @@ def transcript(student_id):
     pdf = build_transcript_pdf(transcript_data(student))
     return send_file(BytesIO(pdf), mimetype="application/pdf",
                      download_name=f"transcript-{student.student_no}.pdf")
+
+
+def report_card_data(student, term):
+    """Return grades and GPA for one student's selected term."""
+    grades = (
+        Grade.query
+        .filter_by(student_id=student.id)
+        .join(Section, Grade.section_id == Section.id)
+        .filter(Section.term_id == term.id)
+        .all()
+    )
+
+    courses = []
+    for grade in grades:
+        course = grade.section.course
+        courses.append({
+            "code": course.code,
+            "name": course.name,
+            "credits": course.credits,
+            "grade": grade.grade,
+            "point": grade.grade_point,
+        })
+
+    courses.sort(key=lambda course: course["code"])
+
+    return {
+        "student": {
+            "studentNo": student.student_no,
+            "name": student.name,
+            "program": student.program,
+            "semester": student.semester,
+        },
+        "term": term.name,
+        "courses": courses,
+        "gpa": gpa_of(courses),
+    }
+
+
+def build_report_card_pdf(data):
+    """Build an official report card PDF and return its bytes."""
+    styles = getSampleStyleSheet()
+    student = data["student"]
+
+    story = [
+        Paragraph("PES University", styles["Title"]),
+        Paragraph("Official Student Report Card", styles["Heading2"]),
+        Spacer(1, 8),
+        Paragraph(
+            escape(f"Name: {student['name']}"),
+            styles["Normal"],
+        ),
+        Paragraph(
+            escape(f"Student Number: {student['studentNo']}"),
+            styles["Normal"],
+        ),
+        Paragraph(
+            escape(f"Program: {student['program']}"),
+            styles["Normal"],
+        ),
+        Paragraph(
+            escape(f"Semester: {student['semester']}"),
+            styles["Normal"],
+        ),
+        Paragraph(
+            escape(f"Academic Term: {data['term']}"),
+            styles["Normal"],
+        ),
+        Spacer(1, 14),
+    ]
+
+    rows = [["Course Code", "Course", "Credits", "Grade", "Points"]]
+    rows += [
+        [
+            course["code"],
+            Paragraph(escape(course["name"]), styles["Normal"]),
+            str(course["credits"]),
+            course["grade"],
+            f"{course['point']:g}",
+        ]
+        for course in data["courses"]
+    ]
+
+    if not data["courses"]:
+        rows.append(["-", "No grades available", "-", "-", "-"])
+
+    table = Table(rows, hAlign="LEFT", colWidths=[75, 205, 55, 55, 55])
+    table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    story.extend([
+        table,
+        Spacer(1, 14),
+        Paragraph(f"Term GPA: {_fmt(data['gpa'])}", styles["Heading2"]),
+        Spacer(1, 12),
+        Paragraph("Official Report Card", styles["Italic"]),
+    ])
+
+    buf = BytesIO()
+    SimpleDocTemplate(
+        buf, pagesize=A4, title="Official Student Report Card"
+    ).build(story)
+    return buf.getvalue()
+
+
+@bp.get("/reports/report-card")
+@require_role("admin")
+def report_card():
+    """Download an official report card. Admin access only."""
+    try:
+        student_id = int(request.args.get("studentId", ""))
+        term_id = int(request.args.get("termId", ""))
+    except (TypeError, ValueError):
+        raise ApiError(
+            400, "invalid_field",
+            "studentId and termId must be valid integers",
+        )
+
+    student = db.session.get(Student, student_id)
+    if student is None:
+        raise ApiError(404, "not_found", "Student not found")
+
+    term = db.session.get(Term, term_id)
+    if term is None:
+        raise ApiError(404, "not_found", "Term not found")
+
+    pdf = build_report_card_pdf(report_card_data(student, term))
+    return send_file(
+        BytesIO(pdf),
+        mimetype="application/pdf",
+        download_name=f"report-card-{student.student_no}-{term.name}.pdf",
+    )
