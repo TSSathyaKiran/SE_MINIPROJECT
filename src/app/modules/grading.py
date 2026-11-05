@@ -9,9 +9,11 @@ import math
 
 from flask import Blueprint, jsonify
 
+from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_float, as_int, get_json, required
 from ..core.security import current_user, require_role
+from ..core.settings import get_date
 from ..extensions import db
 from ..models import Assessment, Enrollment, Mark, Section
 
@@ -63,7 +65,10 @@ def enter_mark():
     if assessment is None:
         raise ApiError(404, "assessment_not_found", "That assessment does not exist")
     section_of_this_faculty(assessment.section_id)
-    # (next commit: the grade-lock date check goes here)
+    # The last day itself is still open; the date comes from admin settings.
+    if clock.today() > get_date("grade_lock_date"):
+        raise ApiError(403, "grades_locked",
+                       "The grade-lock date has passed; marks can no longer be changed")
 
     enrolled = Enrollment.query.filter_by(student_id=student_id,
                                           section_id=assessment.section_id,

@@ -1,6 +1,9 @@
 """Marks entry (SRS-F-040): TC-Grd-01."""
+from datetime import datetime, timedelta
+
 import pytest
 
+from app.core import clock
 from app.core.settings import set_setting
 from app.extensions import db
 from app.models import Assessment, AuditLog, Course, Enrollment, Mark, Section, Term
@@ -24,6 +27,11 @@ def lock_date_far_away(app):
     """The default grade-lock date is a calendar date, so push it far away for every test.
     Tests that need a specific lock date set it themselves."""
     set_setting("grade_lock_date", "2099-12-31")
+    db.session.commit()
+
+
+def set_lock_date(day):
+    set_setting("grade_lock_date", day)
     db.session.commit()
 
 
@@ -190,3 +198,51 @@ def test_tc_grd_01_only_the_sections_faculty_can_enter_marks(client, login_as):
     assert client.post("/grades/marks", headers=other_faculty,
                        json={**body, "assessmentId": 9999}).status_code == 404
     assert Mark.query.count() == 0
+
+
+# Set the clock BEFORE login_as in each test: a session expires after 15 idle minutes,
+# so moving the clock after logging in would log the faculty out.
+
+def test_tc_grd_01_marks_rejected_after_the_lock_date(client, login_as):
+    set_lock_date("2026-11-30")
+    clock.set_now(datetime(2026, 12, 1, 9, 0))
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    student, _ = login_as("student")
+    enroll(student, section)
+    res = client.post("/grades/marks", headers=headers, json={
+        "assessmentId": assessment.id, "studentId": student.student.id, "score": 10})
+    assert res.status_code == 403
+    assert res.json["error"]["code"] == "grades_locked"
+    assert Mark.query.count() == 0
+
+
+def test_tc_grd_01_marks_still_allowed_on_the_lock_date_itself(client, login_as):
+    set_lock_date("2026-11-30")
+    clock.set_now(datetime(2026, 11, 30, 17, 0))
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    student, _ = login_as("student")
+    enroll(student, section)
+    res = client.post("/grades/marks", headers=headers, json={
+        "assessmentId": assessment.id, "studentId": student.student.id, "score": 10})
+    assert res.status_code == 201
+
+
+def test_tc_grd_01_existing_mark_cannot_be_changed_after_the_lock_date(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    student, _ = login_as("student")
+    enroll(student, section)
+    body = {"assessmentId": assessment.id, "studentId": student.student.id}
+    assert client.post("/grades/marks", json={**body, "score": 30},
+                       headers=headers).status_code == 201
+    # the admin moves the lock date to yesterday (the clock stays put so the session stays valid)
+    set_lock_date((clock.today() - timedelta(days=1)).isoformat())
+    res = client.post("/grades/marks", json={**body, "score": 45}, headers=headers)
+    assert res.status_code == 403
+    assert res.json["error"]["code"] == "grades_locked"
+    assert Mark.query.one().score == 30
