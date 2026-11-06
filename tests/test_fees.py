@@ -82,3 +82,29 @@ def test_tc_fee_01_fees_are_read_only(client, login_as):
     url = f"/fees/{user.student.id}"
     for method in (client.post, client.put, client.delete):
         assert method(url, json={"amountPaid": 0}, headers=headers).status_code == 405
+
+
+def test_tc_fee_01_fee_page_shows_records_without_pay_controls(client, login_as):
+    clock.set_now(datetime(2026, 11, 5, 10, 0))
+    user, headers = login_as("student")
+    seed_fees(user.student)
+    res = client.get("/ui/student/fees", headers=headers)
+    assert res.status_code == 200
+    page = res.data.decode()
+    for text in ("Tuition 2025-EVEN", "Library fine", "₹102,000.00",
+                 "₹26,500.00", "₹1,500.00", "outside this system"):
+        assert text in page, text
+    main = page[page.index("<main"):page.index("</main>")]
+    for control in ("<form", "<button", "<input"):  # read-only: nothing to pay or edit
+        assert control not in main, control
+
+
+def test_fee_page_is_for_students_only(client, login_as):
+    _, admin = login_as("admin")
+    assert client.get("/ui/student/fees", headers=admin).status_code == 403
+    assert client.get("/ui/student/fees").status_code == 302      # sent to the login page
+
+
+def test_fee_page_is_live_in_student_menu(client, login_as):
+    _, headers = login_as("student")
+    assert b'href="/ui/student/fees"' in client.get("/ui/student", headers=headers).data

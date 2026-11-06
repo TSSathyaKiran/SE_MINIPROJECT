@@ -4,11 +4,11 @@
   GET /ui/student/fees        student page (read-only)
   plus: block enrollment when overdue balance > fee_threshold setting (in enrollment.py)
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template
 
 from ..core import clock
 from ..core.errors import ApiError
-from ..core.security import current_user, require_login
+from ..core.security import current_user, require_login, require_role
 from ..extensions import db
 from ..models import Fee, Student
 
@@ -58,3 +58,13 @@ def get_fees(student_id):
     if db.session.get(Student, student_id) is None:
         raise ApiError(404, "not_found", "Student not found")
     return jsonify(fee_summary(student_id))
+
+
+@bp.get("/ui/student/fees")
+@require_role("student")
+def fees_page():
+    """Read-only: no pay or edit controls, payments happen outside the system."""
+    student = current_user().student
+    if student is None:
+        raise ApiError(403, "forbidden", "This account has no student record")
+    return render_template("fees/fees.html", fees=fee_summary(student.id))
