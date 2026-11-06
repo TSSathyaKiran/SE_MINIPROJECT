@@ -1,9 +1,9 @@
-"""Fees: TC-Fee-01 (issue #4)."""
+"""Fees: TC-Fee-01 and TC-Fee-02 (issue #4)."""
 from datetime import date, datetime
 
 from app.core import clock
 from app.extensions import db
-from app.models import Fee
+from app.models import Course, Enrollment, Fee, Section, Term
 
 
 def add_fee(student, description, due, paid, due_date, status):
@@ -108,3 +108,71 @@ def test_fee_page_is_for_students_only(client, login_as):
 def test_fee_page_is_live_in_student_menu(client, login_as):
     _, headers = login_as("student")
     assert b'href="/ui/student/fees"' in client.get("/ui/student", headers=headers).data
+
+
+# ---- TC-Fee-02: enrollment blocked above the overdue threshold ----
+# Set the clock BEFORE login_as: moving it later would end the 15-minute session.
+
+def open_section(code="CS150"):
+    term = Term(name="2026-ODD")
+    course = Course(code=code, name=code, credits=4)
+    db.session.add_all([term, course])
+    db.session.flush()
+    section = Section(course_id=course.id, term_id=term.id, name="A", capacity=30)
+    db.session.add(section)
+    db.session.commit()
+    return section
+
+
+def setup_overdue(login_as, client, overdue, threshold=5000):
+    """Admin sets the threshold; a student owes `overdue` on a fee past its due date."""
+    clock.set_now(datetime(2026, 11, 6, 9, 0))
+    _, admin = login_as("admin")
+    assert client.put("/admin/config", json={"feeThreshold": threshold},
+                      headers=admin).status_code == 200
+    user, headers = login_as("student")
+    add_fee(user.student, "Tuition 2025-EVEN", 50000, 50000 - overdue,
+            date(2026, 1, 15), "overdue")
+    return admin, user, headers
+
+
+def test_tc_fee_02_overdue_above_threshold_blocks_enrollment(client, login_as):
+    _, user, headers = setup_overdue(login_as, client, overdue=10000)
+    res = client.post("/enroll", json={"sectionId": open_section().id}, headers=headers)
+    assert res.status_code == 409
+    assert res.json["error"]["code"] == "fees_overdue"
+    assert "overdue fees" in res.json["error"]["message"]
+    assert Enrollment.query.filter_by(student_id=user.student.id).count() == 0
+
+
+def test_tc_fee_02_balance_reduced_below_threshold_allows_enrollment(client, login_as):
+    _, user, headers = setup_overdue(login_as, client, overdue=10000)
+    section = open_section()
+    assert client.post("/enroll", json={"sectionId": section.id}, headers=headers).status_code == 409
+    fee = Fee.query.filter_by(student_id=user.student.id).one()
+    fee.amount_paid = 46000                         # 4,000 still overdue, under 5,000
+    db.session.commit()
+    assert client.post("/enroll", json={"sectionId": section.id}, headers=headers).status_code == 201
+
+
+def test_tc_fee_02_changed_threshold_takes_effect(client, login_as):
+    admin, _, headers = setup_overdue(login_as, client, overdue=10000)
+    section = open_section()
+    assert client.post("/enroll", json={"sectionId": section.id}, headers=headers).status_code == 409
+    assert client.put("/admin/config", json={"feeThreshold": 20000},
+                      headers=admin).status_code == 200
+    assert client.post("/enroll", json={"sectionId": section.id}, headers=headers).status_code == 201
+
+
+def test_tc_fee_02_overdue_equal_to_threshold_is_allowed(client, login_as):
+    _, _, headers = setup_overdue(login_as, client, overdue=5000)
+    res = client.post("/enroll", json={"sectionId": open_section().id}, headers=headers)
+    assert res.status_code == 201
+
+
+def test_tc_fee_02_fees_not_yet_due_do_not_block(client, login_as):
+    clock.set_now(datetime(2026, 11, 6, 9, 0))
+    user, headers = login_as("student")
+    add_fee(user.student, "Tuition 2026-ODD", 50000, 0, date(2026, 12, 15), "due")
+    res = client.post("/enroll", json={"sectionId": open_section().id}, headers=headers)
+    assert res.status_code == 201
