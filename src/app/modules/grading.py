@@ -7,7 +7,7 @@
 """
 import math
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template, request
 
 from ..core import clock
 from ..core.audit import audit
@@ -15,7 +15,7 @@ from ..core.errors import ApiError, as_float, as_int, get_json, required
 from ..core.security import current_user, require_role
 from ..core.settings import get_date
 from ..extensions import db
-from ..models import Assessment, Enrollment, Mark, Section
+from ..models import Assessment, Course, Enrollment, Mark, Section, Student, Term
 
 bp = Blueprint("grading", __name__)
 
@@ -65,6 +65,7 @@ def enter_mark():
     if assessment is None:
         raise ApiError(404, "assessment_not_found", "That assessment does not exist")
     section_of_this_faculty(assessment.section_id)
+
     # The last day itself is still open; the date comes from admin settings.
     if clock.today() > get_date("grade_lock_date"):
         raise ApiError(403, "grades_locked",
@@ -93,3 +94,33 @@ def enter_mark():
     db.session.commit()
     return jsonify(markId=mark.id, status="created" if created else "updated"), \
         (201 if created else 200)
+
+
+@bp.get("/ui/faculty/marks")
+@require_role("faculty")
+def marks_page():
+    sections = (Section.query
+                .join(Course, Section.course_id == Course.id)
+                .join(Term, Section.term_id == Term.id)
+                .filter(Section.faculty_id == current_user().id)
+                .order_by(Term.name.desc(), Course.code, Section.name).all())
+
+    selected, assessments, students, marks = None, [], [], {}
+    section_id = request.args.get("sectionId")
+    if section_id not in (None, ""):
+        selected = section_of_this_faculty(as_int(section_id, "sectionId"))
+        assessments = (Assessment.query.filter_by(section_id=selected.id)
+                       .order_by(Assessment.id).all())
+        students = (Student.query
+                    .join(Enrollment, Enrollment.student_id == Student.id)
+                    .filter(Enrollment.section_id == selected.id,
+                            Enrollment.status == "enrolled")
+                    .order_by(Student.name).all())
+        if assessments:
+            rows = Mark.query.filter(Mark.assessment_id.in_([a.id for a in assessments])).all()
+            marks = {(m.assessment_id, m.student_id): m.score for m in rows}
+
+    lock_date = get_date("grade_lock_date")
+    return render_template("grading/marks.html", sections=sections, selected=selected,
+                           assessments=assessments, students=students, marks=marks,
+                           lock_date=lock_date, locked=clock.today() > lock_date)

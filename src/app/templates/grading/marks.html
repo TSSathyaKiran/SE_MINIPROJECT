@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Marks entry · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Marks entry</h1>
+<p>
+  Grade-lock date: <strong>{{ lock_date }}</strong>.
+  {% if locked %}Marks are locked and read-only.{% else %}You can enter or change marks until that day.{% endif %}
+</p>
+
+<h2 class="h5">My sections</h2>
+<ul class="mb-4">
+  {% for s in sections %}
+  <li>
+    <a href="/ui/faculty/marks?sectionId={{ s.id }}">{{ s.course.code }} · {{ s.course.name }}, section {{ s.name }} ({{ s.term.name }})</a>
+    {% if selected and selected.id == s.id %}<span class="badge text-bg-primary">Selected</span>{% endif %}
+  </li>
+  {% else %}
+  <li>You are not assigned to any section yet.</li>
+  {% endfor %}
+</ul>
+
+{% if selected %}
+<h2 class="h5">{{ selected.course.code }} · section {{ selected.name }}: assessments and marks</h2>
+
+{% if not locked %}
+<form data-api="/grades/assessments" data-reload data-success="Assessment added." class="row g-2 align-items-end mb-4">
+  <input type="hidden" name="sectionId" value="{{ selected.id }}">
+  <div class="col-sm-5">
+    <label for="assessment-name" class="form-label">New assessment</label>
+    <input id="assessment-name" name="name" class="form-control" maxlength="80" placeholder="Midterm" required>
+  </div>
+  <div class="col-sm-3">
+    <label for="assessment-max" class="form-label">Maximum marks</label>
+    <input id="assessment-max" name="maxMarks" type="number" min="1" step="any" class="form-control" required>
+  </div>
+  <div class="col-sm-4">
+    <button class="btn btn-primary">Add assessment</button>
+  </div>
+  <div class="form-msg mt-2" role="alert"></div>
+</form>
+{% endif %}
+
+{% if not assessments %}
+<p>This section has no assessments yet.</p>
+{% elif not students %}
+<p>No students are enrolled in this section yet.</p>
+{% else %}
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <caption class="visually-hidden">Marks for {{ selected.course.code }} section {{ selected.name }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Student</th>
+        {% for a in assessments %}
+        <th scope="col">{{ a.name }} (max {{ "%g"|format(a.max_marks) }})</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for st in students %}
+      <tr>
+        <th scope="row">{{ st.name }} ({{ st.student_no }})</th>
+        {% for a in assessments %}
+        <td>
+          {% set score = marks.get((a.id, st.id)) %}
+          {% if locked %}
+          <span>{{ "%g"|format(score) if score is not none else "–" }}</span>
+          {% else %}
+          <form data-api="/grades/marks" data-reload data-success="Mark saved." class="d-flex gap-2">
+            <input type="hidden" name="assessmentId" value="{{ a.id }}">
+            <input type="hidden" name="studentId" value="{{ st.id }}">
+            <label class="visually-hidden" for="score-{{ a.id }}-{{ st.id }}">Score for {{ st.name }}, {{ a.name }}</label>
+            <input id="score-{{ a.id }}-{{ st.id }}" name="score" type="number" step="any"
+                   min="0" max="{{ a.max_marks }}"
+                   value="{{ '%g'|format(score) if score is not none else '' }}"
+                   class="form-control form-control-sm" style="width: 6rem" required>
+            <button class="btn btn-primary btn-sm">Save</button>
+            <div class="form-msg" role="alert"></div>
+          </form>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

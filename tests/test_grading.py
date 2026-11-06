@@ -317,3 +317,53 @@ def test_tc_grd_01_lock_answers_before_other_errors_but_after_ownership(client, 
     # a faculty member from another section is still told "forbidden"
     res = client.post("/grades/marks", json=body, headers=other_faculty)
     assert res.status_code == 403 and res.json["error"]["code"] == "forbidden"
+def test_tc_grd_01_marks_page_lists_my_sections(client, login_as):
+    faculty, headers = login_as("faculty")
+    make_section(faculty, code="CS150")
+    res = client.get("/ui/faculty/marks", headers=headers)
+    assert res.status_code == 200
+    assert b"CS150" in res.data
+
+
+def test_tc_grd_01_marks_page_shows_assessments_and_mark_forms(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    add_assessment(section, "Midterm", 50)
+    student, _ = login_as("student")
+    enroll(student, section)
+    res = client.get(f"/ui/faculty/marks?sectionId={section.id}", headers=headers)
+    assert res.status_code == 200
+    assert b"Midterm" in res.data
+    assert student.student.student_no.encode() in res.data
+    assert b'data-api="/grades/marks"' in res.data
+    assert b'data-api="/grades/assessments"' in res.data
+
+
+def test_tc_grd_01_marks_page_is_read_only_after_the_lock_date(client, login_as):
+    set_lock_date("2026-11-30")
+    clock.set_now(datetime(2026, 12, 1, 9, 0))
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    student, _ = login_as("student")
+    enroll(student, section)
+    db.session.add(Mark(assessment_id=assessment.id, student_id=student.student.id, score=42))
+    db.session.commit()
+    res = client.get(f"/ui/faculty/marks?sectionId={section.id}", headers=headers)
+    assert b"read-only" in res.data
+    assert b"<span>42</span>" in res.data                       # the saved mark is shown
+    assert b'data-api="/grades/marks"' not in res.data          # but cannot be edited
+    assert b'data-api="/grades/assessments"' not in res.data
+
+
+def test_tc_grd_01_marks_page_is_only_for_the_sections_faculty(client, login_as):
+    faculty, _ = login_as("faculty")
+    section = make_section(faculty)
+    _, other_faculty = login_as("faculty")
+    _, student = login_as("student")
+    url = f"/ui/faculty/marks?sectionId={section.id}"
+    assert client.get(url, headers=other_faculty).status_code == 403
+    assert client.get(url, headers=student).status_code == 403
+    assert client.get(url).status_code == 302                    # sent to the login page
+    assert client.get("/ui/faculty/marks?sectionId=abc",
+                      headers=other_faculty).status_code == 400
