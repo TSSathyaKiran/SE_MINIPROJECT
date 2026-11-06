@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}My fees · SRS-App{% endblock %}
+{% macro money(value) %}₹{{ "{:,.2f}".format(value) }}{% endmacro %}
+{% block content %}
+<h1 class="h3 mb-3">My fees</h1>
+<p class="text-muted">
+  This page only shows your fee records. Payments are made at the accounts office,
+  outside this system.
+</p>
+
+<div class="row g-3 mb-4">
+  {% for label, value in [("Total due", fees.amountDue), ("Paid", fees.amountPaid),
+                          ("Balance", fees.balance), ("Overdue", fees.overdue)] %}
+  <div class="col-6 col-md-3">
+    <div class="border rounded p-3 h-100">
+      <div class="small text-muted">{{ label }}</div>
+      <div class="fs-5 fw-semibold">{{ money(value) }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<h2 class="h5">Fee history</h2>
+<div class="table-responsive">
+  <table class="table table-striped">
+    <caption class="visually-hidden">Your fee records, oldest due date first</caption>
+    <thead>
+      <tr><th scope="col">Description</th><th scope="col">Due date</th>
+          <th scope="col" class="text-end">Amount due</th>
+          <th scope="col" class="text-end">Paid</th><th scope="col">Status</th></tr>
+    </thead>
+    <tbody>
+      {% for fee in fees.history %}
+      <tr>
+        <td>{{ fee.description }}</td><td>{{ fee.dueDate }}</td>
+        <td class="text-end">{{ money(fee.amountDue) }}</td>
+        <td class="text-end">{{ money(fee.amountPaid) }}</td>
+        <td><span class="badge text-bg-{{ {'paid': 'success', 'overdue': 'danger'}.get(fee.status, 'secondary') }}">
+          {{ fee.status|capitalize }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No fee records.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
