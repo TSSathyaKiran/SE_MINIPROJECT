@@ -246,3 +246,74 @@ def test_tc_grd_01_existing_mark_cannot_be_changed_after_the_lock_date(client, l
     assert res.status_code == 403
     assert res.json["error"]["code"] == "grades_locked"
     assert Mark.query.one().score == 30
+def test_tc_grd_01_mark_entry_and_update_are_audited(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    student, _ = login_as("student")
+    enroll(student, section)
+    body = {"assessmentId": assessment.id, "studentId": student.student.id}
+    first = client.post("/grades/marks", json={**body, "score": 20}, headers=headers)
+    client.post("/grades/marks", json={**body, "score": 25}, headers=headers)
+    logs = AuditLog.query.filter_by(record_type="mark").order_by(AuditLog.id).all()
+    assert [log.action for log in logs] == ["grade", "grade"]
+    assert all(log.record_id == str(first.json["markId"]) for log in logs)
+    assert all(log.user_id == faculty.id for log in logs)
+
+
+def test_tc_grd_01_missing_or_bad_fields_rejected(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    student, _ = login_as("student")
+    enroll(student, section)
+    ok = {"assessmentId": assessment.id, "studentId": student.student.id, "score": 10}
+    for missing in ("assessmentId", "studentId", "score"):
+        body = {k: v for k, v in ok.items() if k != missing}
+        assert client.post("/grades/marks", json=body, headers=headers).status_code == 400
+    assert client.post("/grades/marks", json={**ok, "assessmentId": "x"},
+                       headers=headers).status_code == 400
+    assert client.post("/grades/marks", json={**ok, "studentId": "x"},
+                       headers=headers).status_code == 400
+    assert Mark.query.count() == 0
+
+
+def test_tc_grd_01_marks_are_kept_per_student_and_per_assessment(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    midterm = add_assessment(section, "Midterm", 50)
+    quiz = add_assessment(section, "Quiz", 10)
+    first, _ = login_as("student")
+    second, _ = login_as("student")
+    enroll(first, section)
+    enroll(second, section)
+
+    def post(assessment, student, score):
+        return client.post("/grades/marks", headers=headers, json={
+            "assessmentId": assessment.id, "studentId": student.student.id, "score": score})
+
+    assert post(midterm, first, 40).status_code == 201
+    assert post(quiz, first, 8).status_code == 201         # same student, other assessment
+    assert post(midterm, second, 30).status_code == 201    # other student, same assessment
+    assert post(midterm, first, 45).status_code == 200     # only this one is updated
+    scores = {(m.assessment_id, m.student_id): m.score for m in Mark.query.all()}
+    assert scores == {(midterm.id, first.student.id): 45,
+                      (quiz.id, first.student.id): 8,
+                      (midterm.id, second.student.id): 30}
+
+
+def test_tc_grd_01_lock_answers_before_other_errors_but_after_ownership(client, login_as):
+    set_lock_date("2026-11-30")
+    clock.set_now(datetime(2026, 12, 1, 9, 0))
+    faculty, headers = login_as("faculty")
+    _, other_faculty = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section)
+    not_enrolled, _ = login_as("student")
+    body = {"assessmentId": assessment.id, "studentId": not_enrolled.student.id, "score": 999}
+    # the section's own faculty is told the marks are locked, not about enrollment or score
+    res = client.post("/grades/marks", json=body, headers=headers)
+    assert res.status_code == 403 and res.json["error"]["code"] == "grades_locked"
+    # a faculty member from another section is still told "forbidden"
+    res = client.post("/grades/marks", json=body, headers=other_faculty)
+    assert res.status_code == 403 and res.json["error"]["code"] == "forbidden"
