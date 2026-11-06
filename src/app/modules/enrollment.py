@@ -1,6 +1,6 @@
 """Enrollment and drop (Srujan): issue #17. Details in docs/TEAM_GUIDE.md.
 
-  POST   /enroll              student  {sectionId}  409 full / prerequisite unmet / duplicate
+  POST   /enroll              student  {sectionId}  409 full / prerequisite unmet / duplicate / fees overdue
   DELETE /enroll/<id>         student  own enrollment; 403 after the add/drop deadline
   GET    /ui/student/courses  student page: open sections, my enrollments, enroll/drop buttons
 """
@@ -10,9 +10,10 @@ from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_int, get_json, required
 from ..core.security import current_user, require_role
-from ..core.settings import get_date
+from ..core.settings import get_date, get_setting
 from ..extensions import db
 from ..models import Course, Enrollment, Grade, Prerequisite, Section, Term
+from .fees import overdue_balance
 
 bp = Blueprint("enrollment", __name__)
 
@@ -57,7 +58,9 @@ def enroll():
     if Enrollment.query.filter_by(student_id=student.id, section_id=section.id,
                                   status="enrolled").first():
         raise ApiError(409, "duplicate", "You are already enrolled in this section")
-    # (issue #4, Sathya: the overdue-fee check goes here)
+    if overdue_balance(student.id) > get_setting("fee_threshold"):
+        raise ApiError(409, "fees_overdue",
+                       "Enrollment blocked: overdue fees above the allowed limit")
     if seats_taken(section.id) >= section.capacity:
         raise ApiError(409, "section_full", "This section is full")
     missing = unmet_prerequisites(student.id, section.course_id)
