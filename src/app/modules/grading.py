@@ -13,12 +13,36 @@ from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_float, as_int, get_json, required
 from ..core.security import current_user, require_role
-from ..core.settings import get_date
+from ..core.settings import get_date, get_setting
 from ..extensions import db
 from ..models import Assessment, Course, Enrollment, Mark, Section, Student, Term
 
 bp = Blueprint("grading", __name__)
 
+def gpa(items):
+    """Credit-weighted average grade point. items = [(credits, grade_point), ...].
+
+    The same formula gives a term GPA (one term's courses) and the CGPA (all terms'
+    courses together), so a CGPA is never an average of term GPAs.
+    """
+    total_credits = sum(credits for credits, _ in items)
+    if total_credits == 0:
+        return 0.0
+    return round(sum(credits * point for credits, point in items) / total_credits, 2)
+
+
+def grade_for(percent):
+    """(letter, grade point) for a percentage, from the admin grading scale.
+
+    The scale is a list of [minimum %, letter, grade point] rows. The rows are sorted
+    here so an admin-edited scale works in any order. Never hard-code the scale.
+    """
+    percent = round(percent, 6)         # removes floating-point noise such as 89.99999999
+    scale = sorted(get_setting("grading_scale"), key=lambda row: row[0], reverse=True)
+    for minimum, letter, point in scale:
+        if percent >= minimum:
+            return letter, point
+    return "F", 0                       # below every row: the lowest grade
 
 def section_of_this_faculty(section_id):
     """The section, if it exists and the logged-in faculty teaches it."""
