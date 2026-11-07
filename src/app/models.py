@@ -4,6 +4,7 @@ settings and notifications). Tables are created automatically on startup.
 If you add a column, delete src/instance/srs.db and run `python src/seed.py`.
 """
 from .core import clock
+from .core.crypto import EncryptedString
 from .extensions import db
 
 
@@ -33,9 +34,9 @@ class Student(db.Model):
     student_no = db.Column(db.String(20), unique=True, nullable=False)  # e.g. S1001
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True)
     name = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(255), nullable=False)     # PII, encrypted in issue #5
-    phone = db.Column(db.String(255))                     # PII, encrypted in issue #5
-    address = db.Column(db.String(500))                   # PII, encrypted in issue #5
+    email = db.Column(EncryptedString, nullable=False)    # PII, encrypted at rest (SRS-SR-004)
+    phone = db.Column(EncryptedString)                    # PII, encrypted at rest
+    address = db.Column(EncryptedString)                  # PII, encrypted at rest
     program = db.Column(db.String(80), nullable=False)
     semester = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default="active")   # active | inactive (soft delete)
