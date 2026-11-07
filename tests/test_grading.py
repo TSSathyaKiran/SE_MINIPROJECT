@@ -7,7 +7,7 @@ from app.core import clock
 from app.core.settings import set_setting
 from app.extensions import db
 from app.models import Assessment, AuditLog, Course, Enrollment, Mark, Section, Term
-
+from app.modules.grading import gpa, grade_for
 
 def make_section(faculty, code="CS102", capacity=30):
     """Create a term, course and a section taught by `faculty`. Returns the Section."""
@@ -367,3 +367,39 @@ def test_tc_grd_01_marks_page_is_only_for_the_sections_faculty(client, login_as)
     assert client.get(url).status_code == 302                    # sent to the login page
     assert client.get("/ui/faculty/marks?sectionId=abc",
                       headers=other_faculty).status_code == 400
+def test_tc_grd_02_gpa_matches_the_srs_example():
+    assert gpa([(4, 9), (3, 8), (4, 10), (3, 7)]) == 8.64      # 121 / 14
+
+
+def test_tc_grd_02_gpa_edge_cases():
+    assert gpa([]) == 0.0                   # no courses: no division by zero
+    assert gpa([(4, 10)]) == 10.0
+    assert gpa([(3, 0), (3, 0)]) == 0.0
+    assert gpa([(4, 9), (0, 5)]) == 9.0     # a course with zero credits counts for nothing
+
+
+def test_tc_grd_02_cgpa_is_credit_weighted_not_an_average_of_term_gpas():
+    term1 = [(4, 9), (3, 8), (4, 10), (3, 7)]
+    term2 = [(4, 8), (3, 9)]
+    assert gpa(term1) == 8.64               # 121 / 14
+    assert gpa(term2) == 8.43               # 59 / 7
+    assert gpa(term1 + term2) == 8.57       # 180 / 21, the hand-calculated CGPA
+    assert round((gpa(term1) + gpa(term2)) / 2, 2) != gpa(term1 + term2)
+
+
+@pytest.mark.parametrize("percent, letter, point", [
+    (100, "O", 10), (90, "O", 10), (89.99, "A+", 9), (80, "A+", 9), (79.99, "A", 8),
+    (70, "A", 8), (60, "B+", 7), (55, "B", 6), (50, "C", 5), (40, "P", 4),
+    (39.99, "F", 0), (0, "F", 0)])
+def test_tc_grd_02_grade_for_uses_the_default_scale(app, percent, letter, point):
+    assert grade_for(percent) == (letter, point)
+
+
+def test_tc_grd_02_grade_for_reads_the_scale_from_settings(app):
+    # an admin-edited scale, saved in no particular order
+    set_setting("grading_scale", [[0, "F", 0], [75, "D", 8], [50, "P", 5]])
+    db.session.commit()
+    assert grade_for(80) == ("D", 8)
+    assert grade_for(75) == ("D", 8)
+    assert grade_for(60) == ("P", 5)
+    assert grade_for(10) == ("F", 0)
