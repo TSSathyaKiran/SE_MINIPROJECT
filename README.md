@@ -57,7 +57,9 @@ python3 -m venv .venv
 source .venv/bin/activate          # Windows (Git Bash): source .venv/Scripts/activate
 pip install -r requirements.txt
 
-python src/seed.py                 # reset the database and load demo data
+python src/seed.py                 # first time: prints SECRET_KEY=... and PII_KEY=... lines;
+                                   # save them in a new file .env here, then run it again
+python src/seed.py                 # reset the database and load demo data (deletes all records)
 python src/run.py                  # open http://localhost:8000
 pytest                             # run all tests
 ```
@@ -76,13 +78,14 @@ Port 8000 busy? `PORT=8001 python src/run.py`
 
 ## Configuration
 
-Copy `.env.example` to `.env` to change settings. Everything works without it.
+Settings live in `.env` (see `.env.example`); git never commits it. `SECRET_KEY` and `PII_KEY` are
+required: without real values the app refuses to start and prints fresh keys to paste into `.env`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `SECRET_KEY` | `dev-only-change-me` | Flask secret; set a real one outside development |
+| `SECRET_KEY` | none, required | Flask secret; the old example values are refused |
 | `DATABASE_URL` | SQLite file `src/instance/srs.db` | e.g. `mysql+pymysql://root:password@localhost/srs_app` for MySQL |
-| `PII_KEY` | none | Fernet key for encrypting student PII |
+| `PII_KEY` | none, required | Fernet key that encrypts student email, phone and address; keep a copy, the data cannot be read without it |
 | `PORT` | `8000` | Port for `python src/run.py` |
 
 ## Architecture
@@ -179,11 +182,12 @@ scripts/
   sync_issues.sh             make GitHub issues match BACKLOG.md
 src/
   run.py                     start the server
-  seed.py                    reset the database with demo data
+  seed.py                    reset the database with demo data (deletes every record)
+  encrypt_pii.py             encrypt student PII in an older database, keeping its records
   app/
     __init__.py              app factory
     models.py                all tables
-    core/                    security, errors, audit, settings, clock
+    core/                    security, errors, audit, settings, clock, crypto
     modules/                 one file per feature (rules + API + pages)
     templates/, static/      Jinja pages, CSS, api.js
 tests/                       pytest, one file per module

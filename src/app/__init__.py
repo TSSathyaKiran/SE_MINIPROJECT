@@ -1,6 +1,6 @@
 from flask import Flask
 
-from .config import CONFIGS
+from .config import CONFIGS, check_keys
 from .core.errors import register_error_handlers
 from .extensions import db
 
@@ -8,6 +8,7 @@ from .extensions import db
 def create_app(config_name="dev"):
     app = Flask(__name__)
     app.config.from_object(CONFIGS[config_name])
+    check_keys(app.config)             # before anything touches the database
     db.init_app(app)
     register_error_handlers(app)
 
