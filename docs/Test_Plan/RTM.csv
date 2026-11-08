@@ -29,6 +29,6 @@ SRS-NF-006,"Concurrency: 1,000 active users",5,DS-Perf-02,"WebUI / API",TC-Perf-
 SRS-SR-001,"TLS 1.2+ mandatory",6.2,DS-Sec-02,"Deployment/Security",TC-Sec-02,N
 SRS-SR-002,"RBAC enforced at server/API layer",6.2,DS-Sec-03,"Auth/API",TC-Sec-03,N
 SRS-SR-003,"Salted password hashing (bcrypt/Argon2)",6.2,DS-Sec-04,"Auth Module",TC-Sec-04,N
-SRS-SR-004,"Sensitive PII encrypted at rest",6.2,DS-Sec-05,"Database",TC-Sec-05,N
+SRS-SR-004,"Sensitive PII encrypted at rest",6.2,DS-Sec-05,"Database",TC-Sec-05,P
 SRS-SR-005,"Session expiry after 15 min idle",6.2,DS-Sec-06,"Auth Module",TC-Sec-06,N
 SRS-SR-006,"Protected audit log for grade/attendance changes",6.2,DS-Sec-07,"Audit Module",TC-Sec-07,N
