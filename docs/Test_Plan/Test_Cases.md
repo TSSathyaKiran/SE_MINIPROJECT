@@ -283,7 +283,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Run a health-check script every minute against the deployed instance for the observation window.
   2. Exclude declared maintenance periods; calculate availability.
 - **Expected result:** Measured availability is at least 99.5% for the observation window.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-07, local observation window: 100%, 2/2 checks at 60 s)
 
 ## TC-Ops-02: Record and audit-log retention
 
@@ -295,7 +295,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Restore into a clean environment and retrieve old records and log entries.
   3. Review any purge/cleanup job configuration.
 - **Expected result:** Archived data can be restored and retrieved. No job removes academic or audit records younger than 7 years.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-07, restore test: all records and audit logs recovered)
 
 ## TC-Sec-01: PII protection checklist
 
