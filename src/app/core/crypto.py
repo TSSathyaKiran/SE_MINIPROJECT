@@ -3,24 +3,16 @@
     email = db.Column(EncryptedString, nullable=False)
 
 The database only ever holds Fernet ciphertext (AES-128 + HMAC); the app reads
-and writes plain text. The key is PII_KEY from .env. Without one, a key is derived
-from SECRET_KEY so development and tests still work. Changing either key makes
-existing rows unreadable, so re-run seed.py after a change.
+and writes plain text. The key is PII_KEY from .env; the app will not start without
+it (config.check_keys). Changing the key makes existing rows unreadable.
 """
-import base64
-import hashlib
-
 from cryptography.fernet import Fernet
 from flask import current_app
 from sqlalchemy.types import Text, TypeDecorator
 
 
 def _fernet():
-    key = current_app.config.get("PII_KEY")
-    if not key:
-        digest = hashlib.sha256(current_app.config["SECRET_KEY"].encode()).digest()
-        key = base64.urlsafe_b64encode(digest)
-    return Fernet(key)
+    return Fernet(current_app.config["PII_KEY"])
 
 
 def encrypt(value):

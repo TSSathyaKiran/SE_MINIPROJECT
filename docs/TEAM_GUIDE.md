@@ -59,6 +59,8 @@ Everyone also builds their own issues and opens their own PRs.
 ## 2. Run it
 
 ```bash
+python src/seed.py      # first time: prints SECRET_KEY=... and PII_KEY=... lines;
+                        # save them in a new file .env in the project folder, then run it again
 python src/seed.py      # reset the database and load demo data (prints the logins)
 python src/run.py       # open http://localhost:8000
 pytest                  # run all tests (must pass before every commit)
@@ -236,7 +238,7 @@ bash scripts/g.sh commit test fees "cover TC-Fee-02 block, allow and changed thr
 
 Files: new `core/crypto.py`, `models.py` (Student columns), `docs/security/PII_CHECKLIST.md`, `tests/test_crypto.py`.
 
-- `core/crypto.py`: a Fernet key from `PII_KEY` (or, if unset, derived from `SECRET_KEY` for dev), and a SQLAlchemy `TypeDecorator` `EncryptedString` that encrypts in `process_bind_param` and decrypts in `process_result_value`.
+- `core/crypto.py`: a Fernet key from `PII_KEY` (required: the app refuses to start without real keys, see `config.check_keys`), and a SQLAlchemy `TypeDecorator` `EncryptedString` that encrypts in `process_bind_param` and decrypts in `process_result_value`.
 - In `models.py`: `email`, `phone`, `address` become `db.Column(EncryptedString(500))`. Nothing else changes; the app still sees plain text.
 - Test: after saving a student, `db.session.execute(text("SELECT phone FROM students")).scalar()` must not contain the phone number.
 - Checklist (TC-Sec-01): TLS (#10), RBAC on every route, bcrypt, encrypted PII, no PII in logs/URLs/errors, audit log. Add a test that a 409 message doesn't include the email.
@@ -533,6 +535,7 @@ bash scripts/g.sh commit feat notifications "add notifications page"
 | `tests fail` when committing | Read the failing test's message, fix, commit again |
 | `no such column` / `no such table` | `python src/seed.py` (rebuilds the database) |
 | `ModuleNotFoundError: flask` | Activate the venv: `source .venv/bin/activate` |
+| `Cannot start: SECRET_KEY ... must be set` | Save the lines it prints in `.env` in the project folder, then run again |
 | Push rejected | `bash scripts/g.sh sync`, then push again |
 | Merge conflict after sync | Open the file, keep both people's code, remove the `<<<<<<<`/`=======`/`>>>>>>>` lines, run `pytest`, then `bash scripts/g.sh commit fix <module> "resolve merge conflict with main"` |
 | Port 8000 busy | `PORT=8001 python src/run.py` |

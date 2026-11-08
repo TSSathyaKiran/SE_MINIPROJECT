@@ -20,7 +20,7 @@ and record the result in `docs/Test_Plan/Test_Cases.md`.
 | --- | --- | --- | --- | --- |
 | 1 | Encrypted in transit | HTTPS with TLS 1.2+ | TC-Sec-02, issue #10 | Pending (#10) |
 | 2 | Encrypted at rest | Email, phone and address are stored as Fernet ciphertext | `test_tc_sec_05_*` in `tests/test_crypto.py` | Pass |
-| 3 | Key kept out of the code | `PII_KEY` in `.env`, which git ignores; without it, a key is derived from `SECRET_KEY` (development only) | `.gitignore`, `.env.example` | Pass |
+| 3 | Keys kept out of the code and never public | `SECRET_KEY` and `PII_KEY` come from `.env`, which git ignores; the app refuses to start if either is missing or an example value, or `PII_KEY` is not a valid key | `test_tc_sec_05_app_refuses_to_start_without_real_keys`, `.gitignore` | Pass |
 | 4 | Role checks on every API route | `require_role` / `require_login` on each route; ownership checked for student records | `test_tc_auth_02_and_tc_sec_03_roles_enforced_on_api` and each module's 403 tests | Pass |
 | 5 | Passwords hashed | bcrypt with salt | `test_tc_sec_04_passwords_are_salted_hashes` | Pass |
 | 6 | Sessions expire | 15 idle minutes; tokens stored hashed | `test_tc_sec_06_session_expires_after_15_idle_minutes` | Pass |
@@ -46,8 +46,7 @@ and record the result in `docs/Test_Plan/Test_Cases.md`.
 
 ## Keys
 
-- Production sets its own `PII_KEY` (generate one as shown in `.env.example`).
+- Every install has its own `SECRET_KEY` and `PII_KEY`; the app will not start without them.
 - Keep a copy of the key somewhere safe and apart from the database backups. A backup
   on its own cannot be read, and without the key its contact details cannot be recovered.
-- Changing `PII_KEY` (or `SECRET_KEY`, when `PII_KEY` is not set) makes existing rows
-  unreadable. Re-encrypting with a new key is not built; re-seed in development.
+- Changing `PII_KEY` makes existing rows unreadable. Re-encrypting with a new key is not built.

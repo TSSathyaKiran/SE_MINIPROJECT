@@ -2,6 +2,8 @@ import pytest
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
 
+from app import create_app
+from app.config import Config, check_keys
 from app.core.crypto import decrypt, encrypt
 from app.extensions import db
 from app.models import Student
@@ -72,6 +74,35 @@ def test_tc_sec_05_pii_key_is_used_and_other_keys_cannot_read(app):
     app.config["PII_KEY"] = Fernet.generate_key().decode()
     with pytest.raises(InvalidToken):
         decrypt(token)
+
+
+
+# ---- TC-Sec-05: the app will not start on missing or public keys ----
+
+REAL_SECRET = "3f9c" * 16
+REAL_PII_KEY = Fernet.generate_key().decode()
+
+
+@pytest.mark.parametrize("secret, pii_key, bad", [
+    (None, REAL_PII_KEY, ["SECRET_KEY"]),
+    ("change-me", REAL_PII_KEY, ["SECRET_KEY"]),            # the old .env.example value
+    ("dev-only-change-me", REAL_PII_KEY, ["SECRET_KEY"]),   # the old built-in default
+    (REAL_SECRET, None, ["PII_KEY"]),
+    (REAL_SECRET, "not-a-fernet-key", ["PII_KEY"]),
+    (None, None, ["SECRET_KEY", "PII_KEY"]),
+])
+def test_tc_sec_05_app_refuses_to_start_without_real_keys(monkeypatch, secret, pii_key, bad):
+    monkeypatch.setattr(Config, "SQLALCHEMY_DATABASE_URI", "sqlite://")
+    monkeypatch.setattr(Config, "SECRET_KEY", secret)
+    monkeypatch.setattr(Config, "PII_KEY", pii_key)
+    with pytest.raises(RuntimeError, match="Cannot start: " + " and ".join(bad)) as error:
+        create_app("dev")
+    for name in bad:
+        assert f"\n{name}=" in str(error.value)                # a fresh key to paste into .env
+
+
+def test_tc_sec_05_real_keys_are_accepted():
+    check_keys({"SECRET_KEY": REAL_SECRET, "PII_KEY": REAL_PII_KEY})
 
 
 # ---- TC-Sec-01: no PII in error messages, URLs or the audit log ----
