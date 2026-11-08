@@ -9,10 +9,11 @@ from app.extensions import db
 from app.models import (Assessment, AuditLog, Course, Enrollment, Grade, Mark, Notification,Section, Term)
 from app.modules.grading import gpa, grade_for
 
-def make_section(faculty, code="CS102", capacity=30):
+def make_section(faculty, code="CS102", capacity=30, credits=4, term_name="2026-ODD"):
     """Create a term, course and a section taught by `faculty`. Returns the Section."""
-    term = Term.query.filter_by(name="2026-ODD").first() or Term(name="2026-ODD")
-    course = Course.query.filter_by(code=code).first() or Course(code=code, name=code, credits=4)
+    term = Term.query.filter_by(name=term_name).first() or Term(name=term_name)
+    course = (Course.query.filter_by(code=code).first()
+              or Course(code=code, name=code, credits=credits))
     db.session.add_all([term, course])
     db.session.flush()
     section = Section(course_id=course.id, term_id=term.id, name="A",
@@ -586,3 +587,63 @@ def test_tc_grd_03_finalising_twice_does_not_send_twice(client, login_as):
     assert finalise(client, headers, section).status_code == 200
     assert finalise(client, headers, section).status_code == 409
     assert Notification.query.count() == 1
+def finalise_course(client, headers, faculty, student, code, credits, percent,
+                    term_name="2026-ODD"):
+    """One course out of 100 marks: the student's score is the percentage."""
+    section = make_section(faculty, code=code, credits=credits, term_name=term_name)
+    assessment = add_assessment(section, "Final", 100)
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, percent)
+    assert finalise(client, headers, section).status_code == 200
+    return section
+
+
+def grade_items(student, term_name=None):
+    """[(credits, grade point), ...] for the student's finalised courses."""
+    query = (db.session.query(Course.credits, Grade.grade_point)
+             .select_from(Grade)
+             .join(Section, Grade.section_id == Section.id)
+             .join(Course, Section.course_id == Course.id)
+             .join(Term, Section.term_id == Term.id)
+             .filter(Grade.student_id == student.student.id))
+    if term_name:
+        query = query.filter(Term.name == term_name)
+    return [(credits, point) for credits, point in query.all()]
+
+
+def test_tc_grd_02_term_gpa_and_cgpa_after_finalising(client, login_as):
+    faculty, headers = login_as("faculty")
+    student, _ = login_as("student")
+    # Term 1, the SRS example: 4 credits @ 9, 3 @ 8, 4 @ 10, 3 @ 7
+    finalise_course(client, headers, faculty, student, "CS101", 4, 85)    # 85% -> A+ (9)
+    finalise_course(client, headers, faculty, student, "MA101", 3, 75)    # 75% -> A  (8)
+    finalise_course(client, headers, faculty, student, "CS102", 4, 95)    # 95% -> O  (10)
+    finalise_course(client, headers, faculty, student, "CS103", 3, 65)    # 65% -> B+ (7)
+    term1 = grade_items(student, "2026-ODD")
+    assert sorted(term1) == [(3, 7), (3, 8), (4, 9), (4, 10)]
+    assert gpa(term1) == 8.64                                             # 121 / 14
+    # Term 2
+    finalise_course(client, headers, faculty, student, "CS201", 4, 75, "2027-EVEN")  # A  (8)
+    finalise_course(client, headers, faculty, student, "EC101", 3, 85, "2027-EVEN")  # A+ (9)
+    term2 = grade_items(student, "2027-EVEN")
+    assert gpa(term2) == 8.43                                             # 59 / 7
+    # CGPA is credit-weighted across both terms: 180 / 21, the hand-calculated value
+    assert gpa(grade_items(student)) == 8.57
+    assert round((gpa(term1) + gpa(term2)) / 2, 2) != gpa(grade_items(student))
+
+
+def test_tc_grd_02_finalise_uses_the_admin_grading_scale(client, login_as):
+    set_setting("grading_scale", [[50, "P", 5], [0, "F", 0]])    # the admin changed the scale
+    db.session.commit()
+    faculty, headers = login_as("faculty")
+    passing, _ = login_as("student")
+    failing, _ = login_as("student")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    enroll(passing, section)
+    enroll(failing, section)
+    post_mark(client, headers, assessment, passing, 60)
+    post_mark(client, headers, assessment, failing, 49.5)
+    assert finalise(client, headers, section).status_code == 200
+    grades = {g.student_id: (g.grade, g.grade_point) for g in Grade.query.all()}
+    assert grades == {passing.student.id: ("P", 5), failing.student.id: ("F", 0)}
