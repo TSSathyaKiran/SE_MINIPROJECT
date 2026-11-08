@@ -182,11 +182,12 @@ scripts/
   sync_issues.sh             make GitHub issues match BACKLOG.md
 src/
   run.py                     start the server
-  seed.py                    reset the database with demo data
+  seed.py                    reset the database with demo data (deletes every record)
+  encrypt_pii.py             encrypt student PII in an older database, keeping its records
   app/
     __init__.py              app factory
     models.py                all tables
-    core/                    security, errors, audit, settings, clock
+    core/                    security, errors, audit, settings, clock, crypto
     modules/                 one file per feature (rules + API + pages)
     templates/, static/      Jinja pages, CSS, api.js
 tests/                       pytest, one file per module

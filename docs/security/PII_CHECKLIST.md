@@ -33,7 +33,7 @@ and record the result in `docs/Test_Plan/Test_Cases.md`.
 
 ## Manual check
 
-1. `python src/seed.py`, then `python src/run.py`.
+1. On a demo database: `python src/seed.py`, then `python src/run.py`.
 2. Raw database: `sqlite3 src/instance/srs.db "SELECT student_no, email, phone, address FROM students LIMIT 3"`.
    The last three columns start with `gAAAAA` (ciphertext).
    `grep -c -a "student1@example.edu" src/instance/srs.db` prints `0`.
@@ -43,6 +43,30 @@ and record the result in `docs/Test_Plan/Test_Cases.md`.
    `/students/<student1's id>`. No email, phone or address appears in any error.
 6. While doing steps 4 and 5, watch the address bar and the terminal running `run.py`:
    no email, phone or address appears.
+
+## Existing databases (keep the records)
+
+`python src/seed.py` deletes every record, so use it only for throw-away demo data. A
+database filled before PII encryption holds plain-text email, phone and address, and the
+app cannot read those students until they are encrypted. To keep the records:
+
+1. Stop the app.
+2. Back up the database (once #9 is merged, `python scripts/backup.py backup` does this):
+   - SQLite: `cp src/instance/srs.db src/instance/srs-before-encryption.db`
+   - MySQL: `mysqldump -u root -p srs_app > srs-before-encryption.sql`
+3. MySQL only, to make room for the longer encrypted values:
+   `ALTER TABLE students MODIFY email TEXT NOT NULL, MODIFY phone TEXT, MODIFY address TEXT;`
+4. Put `SECRET_KEY` and `PII_KEY` in `.env`; this `PII_KEY` is used from now on.
+5. `python src/encrypt_pii.py`. It prints how many students it encrypted and is safe to run
+   again. If any row was encrypted with a different key it stops and changes nothing.
+6. MySQL only: `OPTIMIZE TABLE students;` rebuilds the table so the old plain-text values do
+   not stay in its free space. On SQLite the script runs `VACUUM`, which does the same.
+7. Check with steps 2 and 4 of the manual check above, then delete the backup from step 2:
+   it still holds the plain-text data.
+
+If something goes wrong, stop the app and put the backup back
+(`cp src/instance/srs-before-encryption.db src/instance/srs.db`, or
+`mysql -u root -p srs_app < srs-before-encryption.sql`).
 
 ## Keys
 

@@ -3,10 +3,11 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
 
 from app import create_app
-from app.config import Config, check_keys
+from app.config import Config, TestConfig, check_keys
 from app.core.crypto import decrypt, encrypt
 from app.extensions import db
 from app.models import Student
+from encrypt_pii import encrypt_existing
 
 PII = {"email": "asha.rao@example.edu", "phone": "9845012345",
        "address": "12 MG Road, Bengaluru"}
@@ -148,3 +149,58 @@ def test_tc_sec_01_audit_log_holds_no_pii(client, login_as):
     assert len(rows) == 2                                           # create + update
     dump = " ".join(str(value) for row in rows for value in row)
     assert not [value for value in PII.values() if value in dump]
+
+
+# ---- Existing databases: src/encrypt_pii.py encrypts old records and keeps them ----
+
+def insert_plain_student(student_no, email, phone=None, address=None):
+    """A student row as saved before encryption: plain text, written with plain SQL."""
+    db.session.execute(text(
+        "INSERT INTO students (student_no, name, email, phone, address, program, semester, status) "
+        "VALUES (:no, 'Old Record', :email, :phone, :address, 'B.Tech CSE', 3, 'active')"),
+        {"no": student_no, "email": email, "phone": phone, "address": address})
+    db.session.commit()
+
+
+def raw_emails():
+    return dict(db.session.execute(text("SELECT student_no, email FROM students")).all())
+
+
+def test_tc_sec_05_encrypt_pii_keeps_and_encrypts_old_records(add_user):
+    add_user("newer", "student")                                   # saved encrypted already
+    insert_plain_student("S0001", **PII)
+    insert_plain_student("S0002", "old.two@example.edu")
+    assert encrypt_existing() == (2, 3)
+
+    stored = db.session.execute(text("SELECT email, phone, address FROM students")).all()
+    dump = " ".join(str(value) for row in stored for value in row)
+    assert not [value for value in [*PII.values(), "old.two@example.edu"] if value in dump]
+    db.session.expire_all()
+    first = Student.query.filter_by(student_no="S0001").one()
+    second = Student.query.filter_by(student_no="S0002").one()
+    assert {"email": first.email, "phone": first.phone, "address": first.address} == PII
+    assert (second.email, second.phone, second.address) == ("old.two@example.edu", None, None)
+    assert encrypt_existing() == (0, 3)                             # safe to run again
+
+
+def test_tc_sec_05_encrypt_pii_changes_nothing_if_another_key_was_used(app, add_user):
+    insert_plain_student("S0001", "old.one@example.edu")
+    add_user("newer", "student")                                   # encrypted with the old key
+    app.config["PII_KEY"] = Fernet.generate_key().decode()
+    with pytest.raises(RuntimeError, match="different PII_KEY"):
+        encrypt_existing()
+    assert raw_emails()["S0001"] == "old.one@example.edu"           # left exactly as it was
+
+
+def test_tc_sec_05_encrypt_pii_leaves_no_plain_text_in_the_file(tmp_path, monkeypatch):
+    path = tmp_path / "old.db"
+    monkeypatch.setattr(TestConfig, "SQLALCHEMY_DATABASE_URI", f"sqlite:///{path}")
+    with create_app("test").app_context():
+        for student_no in ("S0001", "S0002", "S0003"):
+            insert_plain_student(student_no, **PII)
+        assert PII["email"].encode() in path.read_bytes()
+        encrypt_existing()
+        db.session.remove()
+        db.engine.dispose()
+    data = path.read_bytes()                                        # the raw file, like a dump
+    assert not [value for value in PII.values() if value.encode() in data]

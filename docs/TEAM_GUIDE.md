@@ -74,7 +74,7 @@ The database is a SQLite file (`src/instance/srs.db`), so no MySQL install is ne
 
 ```
 src/
-  run.py, seed.py
+  run.py, seed.py, encrypt_pii.py
   app/
     models.py           every table (already done, add columns if you need them)
     core/
@@ -536,6 +536,7 @@ bash scripts/g.sh commit feat notifications "add notifications page"
 | `no such column` / `no such table` | `python src/seed.py` (rebuilds the database) |
 | `ModuleNotFoundError: flask` | Activate the venv: `source .venv/bin/activate` |
 | `Cannot start: SECRET_KEY ... must be set` | Save the lines it prints in `.env` in the project folder, then run again |
+| `InvalidToken` on student pages | The database was filled before PII encryption or with another `PII_KEY`. Demo data: `python src/seed.py`. To keep the records: "Existing databases" in `docs/security/PII_CHECKLIST.md` |
 | Push rejected | `bash scripts/g.sh sync`, then push again |
 | Merge conflict after sync | Open the file, keep both people's code, remove the `<<<<<<<`/`=======`/`>>>>>>>` lines, run `pytest`, then `bash scripts/g.sh commit fix <module> "resolve merge conflict with main"` |
 | Port 8000 busy | `PORT=8001 python src/run.py` |
