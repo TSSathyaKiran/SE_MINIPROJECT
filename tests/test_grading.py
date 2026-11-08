@@ -6,7 +6,7 @@ import pytest
 from app.core import clock
 from app.core.settings import set_setting
 from app.extensions import db
-from app.models import Assessment, AuditLog, Course, Enrollment, Mark, Section, Term
+from app.models import Assessment, AuditLog, Course, Enrollment, Grade, Mark, Section, Term
 from app.modules.grading import gpa, grade_for
 
 def make_section(faculty, code="CS102", capacity=30):
@@ -403,3 +403,143 @@ def test_tc_grd_02_grade_for_reads_the_scale_from_settings(app):
     assert grade_for(75) == ("D", 8)
     assert grade_for(60) == ("P", 5)
     assert grade_for(10) == ("F", 0)
+def post_mark(client, headers, assessment, student, score):
+    res = client.post("/grades/marks", headers=headers, json={
+        "assessmentId": assessment.id, "studentId": student.student.id, "score": score})
+    assert res.status_code in (200, 201), res.json
+    return res
+
+
+def finalise(client, headers, section):
+    return client.post("/grades/finalize", json={"sectionId": section.id}, headers=headers)
+
+
+def test_tc_grd_02_finalise_posts_a_grade_for_every_enrolled_student(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    midterm = add_assessment(section, "Midterm", 50)
+    quiz = add_assessment(section, "Quiz", 10)
+    top, _ = login_as("student")
+    middle, _ = login_as("student")
+    dropped, _ = login_as("student")
+    enroll(top, section)
+    enroll(middle, section)
+    enroll(dropped, section, status="dropped")          # no marks, must not block or get a grade
+    post_mark(client, headers, midterm, top, 45)
+    post_mark(client, headers, quiz, top, 9)            # 54 / 60 = 90%  -> O (10)
+    post_mark(client, headers, midterm, middle, 30)
+    post_mark(client, headers, quiz, middle, 6)         # 36 / 60 = 60%  -> B+ (7)
+    res = finalise(client, headers, section)
+    assert res.status_code == 200
+    assert res.json == {"status": "finalised", "count": 2}
+    grades = {g.student_id: (g.grade, g.grade_point)
+              for g in Grade.query.filter_by(section_id=section.id)}
+    assert grades == {top.student.id: ("O", 10), middle.student.id: ("B+", 7)}
+
+
+def test_tc_grd_02_finalise_refused_without_assessments(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    student, _ = login_as("student")
+    enroll(student, section)
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "no_assessments"
+    assert Grade.query.count() == 0
+
+
+def test_tc_grd_02_finalise_refused_without_enrolled_students(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    add_assessment(section)
+    dropped, _ = login_as("student")
+    enroll(dropped, section, status="dropped")
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "no_students"
+    assert Grade.query.count() == 0
+
+
+def test_tc_grd_02_finalise_refused_when_a_mark_is_missing(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    midterm = add_assessment(section, "Midterm", 50)
+    quiz = add_assessment(section, "Quiz", 10)
+    complete, _ = login_as("student")
+    partial, _ = login_as("student")
+    enroll(complete, section)
+    enroll(partial, section)
+    post_mark(client, headers, midterm, complete, 40)
+    post_mark(client, headers, quiz, complete, 8)
+    post_mark(client, headers, midterm, partial, 30)    # the quiz mark is missing
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "marks_missing"
+    message = res.json["error"]["message"]
+    assert message.startswith("1 ")                     # the count only ...
+    assert partial.name not in message and complete.name not in message   # ... no names
+    assert Grade.query.count() == 0                     # nobody got a grade
+
+
+def test_tc_grd_02_finalise_cannot_be_run_twice(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 80)
+    assert finalise(client, headers, section).status_code == 200
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "already_finalised"
+    assert Grade.query.count() == 1
+
+
+def test_tc_grd_02_marks_and_assessments_are_frozen_after_finalise(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 80)
+    assert finalise(client, headers, section).status_code == 200
+    res = client.post("/grades/marks", headers=headers, json={
+        "assessmentId": assessment.id, "studentId": student.student.id, "score": 95})
+    assert res.status_code == 409 and res.json["error"]["code"] == "already_finalised"
+    assert Mark.query.one().score == 80
+    res = client.post("/grades/assessments", headers=headers,
+                      json={"sectionId": section.id, "name": "Extra", "maxMarks": 10})
+    assert res.status_code == 409 and res.json["error"]["code"] == "already_finalised"
+    assert Assessment.query.count() == 1
+
+
+def test_tc_grd_02_only_the_sections_faculty_can_finalise(client, login_as):
+    faculty, _ = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, student_headers = login_as("student")
+    enroll(student, section)
+    _, other_faculty = login_as("faculty")
+    _, admin = login_as("admin")
+    body = {"sectionId": section.id}
+    assert client.post("/grades/finalize", json=body, headers=other_faculty).status_code == 403
+    assert client.post("/grades/finalize", json=body, headers=student_headers).status_code == 403
+    assert client.post("/grades/finalize", json=body, headers=admin).status_code == 403
+    assert client.post("/grades/finalize", json=body).status_code == 401
+    assert client.post("/grades/finalize", json={}, headers=other_faculty).status_code == 400
+    assert client.post("/grades/finalize", json={"sectionId": 9999},
+                       headers=other_faculty).status_code == 404
+    assert Grade.query.count() == 0
+
+
+def test_tc_grd_02_finalise_is_audited_per_grade(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    first, _ = login_as("student")
+    second, _ = login_as("student")
+    enroll(first, section)
+    enroll(second, section)
+    post_mark(client, headers, assessment, first, 90)
+    post_mark(client, headers, assessment, second, 50)
+    finalise(client, headers, section)
+    logs = AuditLog.query.filter_by(record_type="grade").all()
+    assert len(logs) == 2
+    assert all(log.action == "finalise" and log.user_id == faculty.id for log in logs)
+    assert {log.record_id for log in logs} == {str(g.id) for g in Grade.query.all()}
