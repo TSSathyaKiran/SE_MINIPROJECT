@@ -6,7 +6,7 @@ import pytest
 from app.core import clock
 from app.core.settings import set_setting
 from app.extensions import db
-from app.models import Assessment, AuditLog, Course, Enrollment, Grade, Mark, Section, Term
+from app.models import (Assessment, AuditLog, Course, Enrollment, Grade, Mark, Notification,Section, Term)
 from app.modules.grading import gpa, grade_for
 
 def make_section(faculty, code="CS102", capacity=30):
@@ -543,3 +543,46 @@ def test_tc_grd_02_finalise_is_audited_per_grade(client, login_as):
     assert len(logs) == 2
     assert all(log.action == "finalise" and log.user_id == faculty.id for log in logs)
     assert {log.record_id for log in logs} == {str(g.id) for g in Grade.query.all()}
+def test_tc_grd_03_notifications_only_after_finalise_one_per_student(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty, code="CS102")
+    assessment = add_assessment(section, "Final", 100)
+    first, _ = login_as("student")
+    second, _ = login_as("student")
+    dropped, _ = login_as("student")
+    enroll(first, section)
+    enroll(second, section)
+    enroll(dropped, section, status="dropped")
+    post_mark(client, headers, assessment, first, 92)       # O
+    post_mark(client, headers, assessment, second, 55)      # B
+    assert Notification.query.count() == 0                  # step 1: nothing before finalising
+    assert finalise(client, headers, section).status_code == 200
+    notes = {n.user_id: n.message for n in Notification.query.all()}
+    assert notes == {first.id: "Final grade posted for CS102: O",
+                     second.id: "Final grade posted for CS102: B"}     # the dropped student gets none
+    assert all(n.read is False for n in Notification.query.all())
+
+
+def test_tc_grd_03_failed_finalise_sends_nothing(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    marked, _ = login_as("student")
+    unmarked, _ = login_as("student")
+    enroll(marked, section)
+    enroll(unmarked, section)
+    post_mark(client, headers, assessment, marked, 80)     # the other student has no mark
+    assert finalise(client, headers, section).status_code == 409
+    assert Notification.query.count() == 0
+
+
+def test_tc_grd_03_finalising_twice_does_not_send_twice(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 80)
+    assert finalise(client, headers, section).status_code == 200
+    assert finalise(client, headers, section).status_code == 409
+    assert Notification.query.count() == 1

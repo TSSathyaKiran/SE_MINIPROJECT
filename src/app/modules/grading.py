@@ -10,7 +10,7 @@ import math
 
 from flask import Blueprint, jsonify, render_template, request
 from sqlalchemy.exc import IntegrityError
-
+from .notifications import notify
 from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_float, as_int, get_json, required
@@ -178,7 +178,10 @@ def finalize_grades():
             db.session.add(grade)
             db.session.flush()          # gives grade.id for the audit entry
             audit("finalise", "grade", grade.id)
-        db.session.commit()             # all grades are posted together, or none
+            if enrollment.student.user_id is not None:
+                notify(enrollment.student.user_id,
+                       f"Final grade posted for {section.course.code}: {letter}")
+        db.session.commit()             # grades and notifications are saved together, or none             # all grades are posted together, or none
     except IntegrityError:              # two finalise requests at the same moment
         db.session.rollback()
         raise ApiError(409, "already_finalised",
