@@ -647,3 +647,79 @@ def test_tc_grd_02_finalise_uses_the_admin_grading_scale(client, login_as):
     assert finalise(client, headers, section).status_code == 200
     grades = {g.student_id: (g.grade, g.grade_point) for g in Grade.query.all()}
     assert grades == {passing.student.id: ("P", 5), failing.student.id: ("F", 0)}
+def test_tc_grd_02_student_grades_json_has_term_gpa_and_cgpa(client, login_as):
+    faculty, headers = login_as("faculty")
+    student, student_headers = login_as("student")
+    finalise_course(client, headers, faculty, student, "CS101", 4, 85)                # A+ (9)
+    finalise_course(client, headers, faculty, student, "MA101", 3, 75)                # A  (8)
+    finalise_course(client, headers, faculty, student, "CS201", 4, 95, "2027-EVEN")   # O  (10)
+    res = client.get(f"/grades/{student.student.id}", headers=student_headers)
+    assert res.status_code == 200
+    terms = res.json["terms"]
+    assert [t["term"] for t in terms] == ["2026-ODD", "2027-EVEN"]
+    assert [t["gpa"] for t in terms] == [8.57, 10.0]          # 60/7 and 40/4
+    assert res.json["cgpa"] == 9.09                           # 100/11, not (8.57 + 10) / 2
+    assert res.json["cgpa"] == gpa(grade_items(student))      # the same formula as gpa()
+    assert [c["code"] for c in terms[0]["courses"]] == ["CS101", "MA101"]
+    assert terms[0]["courses"][0] == {"code": "CS101", "name": "CS101", "credits": 4,
+                                      "grade": "A+", "point": 9}
+
+
+def test_tc_grd_02_student_without_grades_has_no_cgpa(client, login_as):
+    student, headers = login_as("student")
+    res = client.get(f"/grades/{student.student.id}", headers=headers)
+    assert res.status_code == 200
+    assert res.json["terms"] == [] and res.json["cgpa"] is None
+
+
+def test_tc_grd_02_student_grades_access_rules(client, login_as):
+    _, faculty_headers = login_as("faculty")
+    student, student_headers = login_as("student")
+    _, other_student = login_as("student")
+    _, admin = login_as("admin")
+    url = f"/grades/{student.student.id}"
+    assert client.get(url, headers=student_headers).status_code == 200
+    assert client.get(url, headers=admin).status_code == 200
+    assert client.get(url, headers=other_student).status_code == 403
+    assert client.get(url, headers=faculty_headers).status_code == 403
+    assert client.get(url).status_code == 401
+    assert client.get("/grades/9999", headers=admin).status_code == 404
+
+
+def test_tc_grd_02_grades_page_shows_gpa_cgpa_and_transcript_link(client, login_as):
+    faculty, headers = login_as("faculty")
+    student, student_headers = login_as("student")
+    finalise_course(client, headers, faculty, student, "CS101", 4, 85)
+    finalise_course(client, headers, faculty, student, "MA101", 3, 75)
+    page = client.get("/ui/student/grades", headers=student_headers).data
+    assert b"CS101" in page and b"Term 2026-ODD" in page
+    assert b"Term GPA: 8.57" in page and b"CGPA: 8.57" in page
+    assert f'href="/reports/transcript/{student.student.id}"'.encode() in page
+
+
+def test_tc_grd_02_grades_page_when_nothing_is_posted_and_roles(client, login_as):
+    _, student = login_as("student")
+    _, faculty = login_as("faculty")
+    page = client.get("/ui/student/grades", headers=student).data
+    assert b"No grades have been posted yet" in page
+    assert client.get("/ui/student/grades", headers=faculty).status_code == 403
+    assert client.get("/ui/student/grades").status_code == 302
+
+
+def test_tc_grd_02_marks_page_has_finalise_button_until_finalised(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 70)
+    url = f"/ui/faculty/marks?sectionId={section.id}"
+    page = client.get(url, headers=headers).data
+    assert b'data-api="/grades/finalize"' in page
+    assert finalise(client, headers, section).status_code == 200
+    page = client.get(url, headers=headers).data
+    assert b'data-api="/grades/finalize"' not in page
+    assert b'data-api="/grades/marks"' not in page
+    assert b'data-api="/grades/assessments"' not in page
+    assert b"finalised and read-only" in page
+    assert b"<span>70</span>" in page

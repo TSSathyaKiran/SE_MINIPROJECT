@@ -4,20 +4,24 @@
   POST /grades/marks         faculty  {assessmentId, studentId, score}  403 after grade lock
   POST /grades/finalize      faculty  {sectionId}  409 already finalised / no assessments /
                                       no students / marks missing
-  GET  /ui/faculty/marks     faculty page: my sections, assessments, marks
+  GET  /grades/<studentId>   that student or admin: terms, term GPA and CGPA
+  GET  /ui/faculty/marks     faculty page: my sections, assessments, marks, Finalise button
+  GET  /ui/student/grades    student page: grades per term, GPA, CGPA, transcript link
 """
 import math
 
 from flask import Blueprint, jsonify, render_template, request
 from sqlalchemy.exc import IntegrityError
-from .notifications import notify
+
 from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_float, as_int, get_json, required
-from ..core.security import current_user, require_role
+from ..core.security import current_user, require_login, require_role
 from ..core.settings import get_date, get_setting
 from ..extensions import db
 from ..models import Assessment, Course, Enrollment, Grade, Mark, Section, Student, Term
+from .notifications import notify
+from .reports import transcript_data
 
 bp = Blueprint("grading", __name__)
 
@@ -181,12 +185,31 @@ def finalize_grades():
             if enrollment.student.user_id is not None:
                 notify(enrollment.student.user_id,
                        f"Final grade posted for {section.course.code}: {letter}")
-        db.session.commit()             # grades and notifications are saved together, or none             # all grades are posted together, or none
+        db.session.commit()             # grades and notifications are saved together, or none
     except IntegrityError:              # two finalise requests at the same moment
         db.session.rollback()
         raise ApiError(409, "already_finalised",
                        "Grades for this section are already finalised")
     return jsonify(status="finalised", count=len(enrollments))
+
+
+@bp.get("/grades/<int:student_id>")
+@require_login
+def student_grades(student_id):
+    user = current_user()
+    if user.role == "student":
+        own = Student.query.filter_by(user_id=user.id).first()
+        if own is None or own.id != student_id:
+            raise ApiError(403, "forbidden", "You can only view your own grades")
+    elif user.role != "admin":
+        raise ApiError(403, "forbidden", "Only the student or an admin can view grades")
+
+    student = db.session.get(Student, student_id)
+    if student is None:
+        raise ApiError(404, "not_found", "Student not found")
+    # The same numbers as the transcript PDF, so the page and the PDF always agree.
+    data = transcript_data(student)
+    return jsonify(student=data["student"], terms=data["terms"], cgpa=data["cgpa"])
 
 
 @bp.get("/ui/faculty/marks")
@@ -198,10 +221,11 @@ def marks_page():
                 .filter(Section.faculty_id == current_user().id)
                 .order_by(Term.name.desc(), Course.code, Section.name).all())
 
-    selected, assessments, students, marks = None, [], [], {}
+    selected, assessments, students, marks, finalised = None, [], [], {}, False
     section_id = request.args.get("sectionId")
     if section_id not in (None, ""):
         selected = section_of_this_faculty(as_int(section_id, "sectionId"))
+        finalised = is_finalised(selected.id)
         assessments = (Assessment.query.filter_by(section_id=selected.id)
                        .order_by(Assessment.id).all())
         students = (Student.query
@@ -216,4 +240,15 @@ def marks_page():
     lock_date = get_date("grade_lock_date")
     return render_template("grading/marks.html", sections=sections, selected=selected,
                            assessments=assessments, students=students, marks=marks,
-                           lock_date=lock_date, locked=clock.today() > lock_date)
+                           lock_date=lock_date, locked=clock.today() > lock_date,
+                           finalised=finalised)
+
+
+@bp.get("/ui/student/grades")
+@require_role("student")
+def grades_page():
+    student = current_user().student
+    if student is None:
+        raise ApiError(403, "forbidden", "This account has no student record")
+    return render_template("grading/grades.html", data=transcript_data(student),
+                           student_id=student.id)
