@@ -17,9 +17,14 @@ def make_ssl_context(cert="cert.pem", key="key.pem"):
     return ctx
 
 
+def debug_enabled():
+    """Debug stays off unless explicitly requested: the debugger leaks tracebacks (TC-Sec-01)."""
+    return os.getenv("FLASK_DEBUG") == "1"
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     if os.getenv("HTTPS") == "1":
-        app.run(debug=True, port=port, ssl_context=make_ssl_context())
+        app.run(debug=debug_enabled(), port=port, ssl_context=make_ssl_context())
     else:
-        app.run(debug=True, port=port)
+        app.run(debug=debug_enabled(), port=port)
