@@ -1,6 +1,9 @@
 """Reset the database and load demo data:  python src/seed.py
 
-WARNING: deletes everything in the database first.
+WARNING: this DELETES EVERY RECORD in the database it points at (DATABASE_URL, or
+src/instance/srs.db) and loads made-up demo data. Only run it on a database you can
+throw away. To keep existing records, use src/encrypt_pii.py instead (steps in
+docs/security/PII_CHECKLIST.md, "Existing databases").
 Add demo rows for your own feature at the end of seed() if you need them.
 """
 from datetime import date
@@ -90,6 +93,6 @@ def seed():
 if __name__ == "__main__":
     with create_app("dev").app_context():
         seed()
-    print("Database reset. Log in with:")
+    print("Database reset: all previous records deleted, demo data loaded. Log in with:")
     for username, password, _, role in ACCOUNTS:
         print(f"  {role:8} {username} / {password}")

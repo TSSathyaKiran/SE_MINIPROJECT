@@ -283,7 +283,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Run a health-check script every minute against the deployed instance for the observation window.
   2. Exclude declared maintenance periods; calculate availability.
 - **Expected result:** Measured availability is at least 99.5% for the observation window.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-07, local observation window: 100%, 2/2 checks at 60 s)
 
 ## TC-Ops-02: Record and audit-log retention
 
@@ -295,7 +295,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Restore into a clean environment and retrieve old records and log entries.
   3. Review any purge/cleanup job configuration.
 - **Expected result:** Archived data can be restored and retrieved. No job removes academic or audit records younger than 7 years.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-07, restore test: all records and audit logs recovered)
 
 ## TC-Sec-01: PII protection checklist
 
@@ -306,7 +306,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Run the security checklist covering encryption in transit and at rest, RBAC, and log content.
   2. Search logs, URLs, and error messages for PII.
 - **Expected result:** All checklist items pass; no PII appears in logs, URLs, or error messages.
-- **Status:** Not tested
+- **Status:** Partly passed (2026-11-08, 10 of 12 items in `docs/security/PII_CHECKLIST.md` pass, including no PII in errors, URLs or logs; TLS and debug mode off wait on #10)
 
 ## TC-Sec-02: TLS 1.2+ enforced
 
@@ -351,7 +351,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Identify sensitive PII fields.
   2. Inspect the raw database files/backup and the database encryption configuration.
 - **Expected result:** Sensitive PII is encrypted at field level or covered by database/storage encryption; not readable in a raw dump.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-08, email, phone and address are ciphertext in the raw database file, an SQL dump and a backup copy; an older database migrated with `src/encrypt_pii.py` keeps every record; 15 automated checks in `tests/test_crypto.py`)
 
 ## TC-Sec-06: Session timeout after 15 minutes
 
