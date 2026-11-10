@@ -6,13 +6,14 @@ import pytest
 from app.core import clock
 from app.core.settings import set_setting
 from app.extensions import db
-from app.models import Assessment, AuditLog, Course, Enrollment, Mark, Section, Term
+from app.models import (Assessment, AuditLog, Course, Enrollment, Grade, Mark, Notification,Section, Term)
+from app.modules.grading import gpa, grade_for
 
-
-def make_section(faculty, code="CS102", capacity=30):
+def make_section(faculty, code="CS102", capacity=30, credits=4, term_name="2026-ODD"):
     """Create a term, course and a section taught by `faculty`. Returns the Section."""
-    term = Term.query.filter_by(name="2026-ODD").first() or Term(name="2026-ODD")
-    course = Course.query.filter_by(code=code).first() or Course(code=code, name=code, credits=4)
+    term = Term.query.filter_by(name=term_name).first() or Term(name=term_name)
+    course = (Course.query.filter_by(code=code).first()
+              or Course(code=code, name=code, credits=credits))
     db.session.add_all([term, course])
     db.session.flush()
     section = Section(course_id=course.id, term_id=term.id, name="A",
@@ -367,3 +368,358 @@ def test_tc_grd_01_marks_page_is_only_for_the_sections_faculty(client, login_as)
     assert client.get(url).status_code == 302                    # sent to the login page
     assert client.get("/ui/faculty/marks?sectionId=abc",
                       headers=other_faculty).status_code == 400
+def test_tc_grd_02_gpa_matches_the_srs_example():
+    assert gpa([(4, 9), (3, 8), (4, 10), (3, 7)]) == 8.64      # 121 / 14
+
+
+def test_tc_grd_02_gpa_edge_cases():
+    assert gpa([]) == 0.0                   # no courses: no division by zero
+    assert gpa([(4, 10)]) == 10.0
+    assert gpa([(3, 0), (3, 0)]) == 0.0
+    assert gpa([(4, 9), (0, 5)]) == 9.0     # a course with zero credits counts for nothing
+
+
+def test_tc_grd_02_cgpa_is_credit_weighted_not_an_average_of_term_gpas():
+    term1 = [(4, 9), (3, 8), (4, 10), (3, 7)]
+    term2 = [(4, 8), (3, 9)]
+    assert gpa(term1) == 8.64               # 121 / 14
+    assert gpa(term2) == 8.43               # 59 / 7
+    assert gpa(term1 + term2) == 8.57       # 180 / 21, the hand-calculated CGPA
+    assert round((gpa(term1) + gpa(term2)) / 2, 2) != gpa(term1 + term2)
+
+
+@pytest.mark.parametrize("percent, letter, point", [
+    (100, "O", 10), (90, "O", 10), (89.99, "A+", 9), (80, "A+", 9), (79.99, "A", 8),
+    (70, "A", 8), (60, "B+", 7), (55, "B", 6), (50, "C", 5), (40, "P", 4),
+    (39.99, "F", 0), (0, "F", 0)])
+def test_tc_grd_02_grade_for_uses_the_default_scale(app, percent, letter, point):
+    assert grade_for(percent) == (letter, point)
+
+
+def test_tc_grd_02_grade_for_reads_the_scale_from_settings(app):
+    # an admin-edited scale, saved in no particular order
+    set_setting("grading_scale", [[0, "F", 0], [75, "D", 8], [50, "P", 5]])
+    db.session.commit()
+    assert grade_for(80) == ("D", 8)
+    assert grade_for(75) == ("D", 8)
+    assert grade_for(60) == ("P", 5)
+    assert grade_for(10) == ("F", 0)
+def post_mark(client, headers, assessment, student, score):
+    res = client.post("/grades/marks", headers=headers, json={
+        "assessmentId": assessment.id, "studentId": student.student.id, "score": score})
+    assert res.status_code in (200, 201), res.json
+    return res
+
+
+def finalise(client, headers, section):
+    return client.post("/grades/finalize", json={"sectionId": section.id}, headers=headers)
+
+
+def test_tc_grd_02_finalise_posts_a_grade_for_every_enrolled_student(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    midterm = add_assessment(section, "Midterm", 50)
+    quiz = add_assessment(section, "Quiz", 10)
+    top, _ = login_as("student")
+    middle, _ = login_as("student")
+    dropped, _ = login_as("student")
+    enroll(top, section)
+    enroll(middle, section)
+    enroll(dropped, section, status="dropped")          # no marks, must not block or get a grade
+    post_mark(client, headers, midterm, top, 45)
+    post_mark(client, headers, quiz, top, 9)            # 54 / 60 = 90%  -> O (10)
+    post_mark(client, headers, midterm, middle, 30)
+    post_mark(client, headers, quiz, middle, 6)         # 36 / 60 = 60%  -> B+ (7)
+    res = finalise(client, headers, section)
+    assert res.status_code == 200
+    assert res.json == {"status": "finalised", "count": 2}
+    grades = {g.student_id: (g.grade, g.grade_point)
+              for g in Grade.query.filter_by(section_id=section.id)}
+    assert grades == {top.student.id: ("O", 10), middle.student.id: ("B+", 7)}
+
+
+def test_tc_grd_02_finalise_refused_without_assessments(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    student, _ = login_as("student")
+    enroll(student, section)
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "no_assessments"
+    assert Grade.query.count() == 0
+
+
+def test_tc_grd_02_finalise_refused_without_enrolled_students(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    add_assessment(section)
+    dropped, _ = login_as("student")
+    enroll(dropped, section, status="dropped")
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "no_students"
+    assert Grade.query.count() == 0
+
+
+def test_tc_grd_02_finalise_refused_when_a_mark_is_missing(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    midterm = add_assessment(section, "Midterm", 50)
+    quiz = add_assessment(section, "Quiz", 10)
+    complete, _ = login_as("student")
+    partial, _ = login_as("student")
+    enroll(complete, section)
+    enroll(partial, section)
+    post_mark(client, headers, midterm, complete, 40)
+    post_mark(client, headers, quiz, complete, 8)
+    post_mark(client, headers, midterm, partial, 30)    # the quiz mark is missing
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "marks_missing"
+    message = res.json["error"]["message"]
+    assert message.startswith("1 ")                     # the count only ...
+    assert partial.name not in message and complete.name not in message   # ... no names
+    assert Grade.query.count() == 0                     # nobody got a grade
+
+
+def test_tc_grd_02_finalise_cannot_be_run_twice(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 80)
+    assert finalise(client, headers, section).status_code == 200
+    res = finalise(client, headers, section)
+    assert res.status_code == 409 and res.json["error"]["code"] == "already_finalised"
+    assert Grade.query.count() == 1
+
+
+def test_tc_grd_02_marks_and_assessments_are_frozen_after_finalise(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 80)
+    assert finalise(client, headers, section).status_code == 200
+    res = client.post("/grades/marks", headers=headers, json={
+        "assessmentId": assessment.id, "studentId": student.student.id, "score": 95})
+    assert res.status_code == 409 and res.json["error"]["code"] == "already_finalised"
+    assert Mark.query.one().score == 80
+    res = client.post("/grades/assessments", headers=headers,
+                      json={"sectionId": section.id, "name": "Extra", "maxMarks": 10})
+    assert res.status_code == 409 and res.json["error"]["code"] == "already_finalised"
+    assert Assessment.query.count() == 1
+
+
+def test_tc_grd_02_only_the_sections_faculty_can_finalise(client, login_as):
+    faculty, _ = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, student_headers = login_as("student")
+    enroll(student, section)
+    _, other_faculty = login_as("faculty")
+    _, admin = login_as("admin")
+    body = {"sectionId": section.id}
+    assert client.post("/grades/finalize", json=body, headers=other_faculty).status_code == 403
+    assert client.post("/grades/finalize", json=body, headers=student_headers).status_code == 403
+    assert client.post("/grades/finalize", json=body, headers=admin).status_code == 403
+    assert client.post("/grades/finalize", json=body).status_code == 401
+    assert client.post("/grades/finalize", json={}, headers=other_faculty).status_code == 400
+    assert client.post("/grades/finalize", json={"sectionId": 9999},
+                       headers=other_faculty).status_code == 404
+    assert Grade.query.count() == 0
+
+
+def test_tc_grd_02_finalise_is_audited_per_grade(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    first, _ = login_as("student")
+    second, _ = login_as("student")
+    enroll(first, section)
+    enroll(second, section)
+    post_mark(client, headers, assessment, first, 90)
+    post_mark(client, headers, assessment, second, 50)
+    finalise(client, headers, section)
+    logs = AuditLog.query.filter_by(record_type="grade").all()
+    assert len(logs) == 2
+    assert all(log.action == "finalise" and log.user_id == faculty.id for log in logs)
+    assert {log.record_id for log in logs} == {str(g.id) for g in Grade.query.all()}
+def test_tc_grd_03_notifications_only_after_finalise_one_per_student(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty, code="CS102")
+    assessment = add_assessment(section, "Final", 100)
+    first, _ = login_as("student")
+    second, _ = login_as("student")
+    dropped, _ = login_as("student")
+    enroll(first, section)
+    enroll(second, section)
+    enroll(dropped, section, status="dropped")
+    post_mark(client, headers, assessment, first, 92)       # O
+    post_mark(client, headers, assessment, second, 55)      # B
+    assert Notification.query.count() == 0                  # step 1: nothing before finalising
+    assert finalise(client, headers, section).status_code == 200
+    notes = {n.user_id: n.message for n in Notification.query.all()}
+    assert notes == {first.id: "Final grade posted for CS102: O",
+                     second.id: "Final grade posted for CS102: B"}     # the dropped student gets none
+    assert all(n.read is False for n in Notification.query.all())
+
+
+def test_tc_grd_03_failed_finalise_sends_nothing(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    marked, _ = login_as("student")
+    unmarked, _ = login_as("student")
+    enroll(marked, section)
+    enroll(unmarked, section)
+    post_mark(client, headers, assessment, marked, 80)     # the other student has no mark
+    assert finalise(client, headers, section).status_code == 409
+    assert Notification.query.count() == 0
+
+
+def test_tc_grd_03_finalising_twice_does_not_send_twice(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 80)
+    assert finalise(client, headers, section).status_code == 200
+    assert finalise(client, headers, section).status_code == 409
+    assert Notification.query.count() == 1
+def finalise_course(client, headers, faculty, student, code, credits, percent,
+                    term_name="2026-ODD"):
+    """One course out of 100 marks: the student's score is the percentage."""
+    section = make_section(faculty, code=code, credits=credits, term_name=term_name)
+    assessment = add_assessment(section, "Final", 100)
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, percent)
+    assert finalise(client, headers, section).status_code == 200
+    return section
+
+
+def grade_items(student, term_name=None):
+    """[(credits, grade point), ...] for the student's finalised courses."""
+    query = (db.session.query(Course.credits, Grade.grade_point)
+             .select_from(Grade)
+             .join(Section, Grade.section_id == Section.id)
+             .join(Course, Section.course_id == Course.id)
+             .join(Term, Section.term_id == Term.id)
+             .filter(Grade.student_id == student.student.id))
+    if term_name:
+        query = query.filter(Term.name == term_name)
+    return [(credits, point) for credits, point in query.all()]
+
+
+def test_tc_grd_02_term_gpa_and_cgpa_after_finalising(client, login_as):
+    faculty, headers = login_as("faculty")
+    student, _ = login_as("student")
+    # Term 1, the SRS example: 4 credits @ 9, 3 @ 8, 4 @ 10, 3 @ 7
+    finalise_course(client, headers, faculty, student, "CS101", 4, 85)    # 85% -> A+ (9)
+    finalise_course(client, headers, faculty, student, "MA101", 3, 75)    # 75% -> A  (8)
+    finalise_course(client, headers, faculty, student, "CS102", 4, 95)    # 95% -> O  (10)
+    finalise_course(client, headers, faculty, student, "CS103", 3, 65)    # 65% -> B+ (7)
+    term1 = grade_items(student, "2026-ODD")
+    assert sorted(term1) == [(3, 7), (3, 8), (4, 9), (4, 10)]
+    assert gpa(term1) == 8.64                                             # 121 / 14
+    # Term 2
+    finalise_course(client, headers, faculty, student, "CS201", 4, 75, "2027-EVEN")  # A  (8)
+    finalise_course(client, headers, faculty, student, "EC101", 3, 85, "2027-EVEN")  # A+ (9)
+    term2 = grade_items(student, "2027-EVEN")
+    assert gpa(term2) == 8.43                                             # 59 / 7
+    # CGPA is credit-weighted across both terms: 180 / 21, the hand-calculated value
+    assert gpa(grade_items(student)) == 8.57
+    assert round((gpa(term1) + gpa(term2)) / 2, 2) != gpa(grade_items(student))
+
+
+def test_tc_grd_02_finalise_uses_the_admin_grading_scale(client, login_as):
+    set_setting("grading_scale", [[50, "P", 5], [0, "F", 0]])    # the admin changed the scale
+    db.session.commit()
+    faculty, headers = login_as("faculty")
+    passing, _ = login_as("student")
+    failing, _ = login_as("student")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    enroll(passing, section)
+    enroll(failing, section)
+    post_mark(client, headers, assessment, passing, 60)
+    post_mark(client, headers, assessment, failing, 49.5)
+    assert finalise(client, headers, section).status_code == 200
+    grades = {g.student_id: (g.grade, g.grade_point) for g in Grade.query.all()}
+    assert grades == {passing.student.id: ("P", 5), failing.student.id: ("F", 0)}
+def test_tc_grd_02_student_grades_json_has_term_gpa_and_cgpa(client, login_as):
+    faculty, headers = login_as("faculty")
+    student, student_headers = login_as("student")
+    finalise_course(client, headers, faculty, student, "CS101", 4, 85)                # A+ (9)
+    finalise_course(client, headers, faculty, student, "MA101", 3, 75)                # A  (8)
+    finalise_course(client, headers, faculty, student, "CS201", 4, 95, "2027-EVEN")   # O  (10)
+    res = client.get(f"/grades/{student.student.id}", headers=student_headers)
+    assert res.status_code == 200
+    terms = res.json["terms"]
+    assert [t["term"] for t in terms] == ["2026-ODD", "2027-EVEN"]
+    assert [t["gpa"] for t in terms] == [8.57, 10.0]          # 60/7 and 40/4
+    assert res.json["cgpa"] == 9.09                           # 100/11, not (8.57 + 10) / 2
+    assert res.json["cgpa"] == gpa(grade_items(student))      # the same formula as gpa()
+    assert [c["code"] for c in terms[0]["courses"]] == ["CS101", "MA101"]
+    assert terms[0]["courses"][0] == {"code": "CS101", "name": "CS101", "credits": 4,
+                                      "grade": "A+", "point": 9}
+
+
+def test_tc_grd_02_student_without_grades_has_no_cgpa(client, login_as):
+    student, headers = login_as("student")
+    res = client.get(f"/grades/{student.student.id}", headers=headers)
+    assert res.status_code == 200
+    assert res.json["terms"] == [] and res.json["cgpa"] is None
+
+
+def test_tc_grd_02_student_grades_access_rules(client, login_as):
+    _, faculty_headers = login_as("faculty")
+    student, student_headers = login_as("student")
+    _, other_student = login_as("student")
+    _, admin = login_as("admin")
+    url = f"/grades/{student.student.id}"
+    assert client.get(url, headers=student_headers).status_code == 200
+    assert client.get(url, headers=admin).status_code == 200
+    assert client.get(url, headers=other_student).status_code == 403
+    assert client.get(url, headers=faculty_headers).status_code == 403
+    assert client.get(url).status_code == 401
+    assert client.get("/grades/9999", headers=admin).status_code == 404
+
+
+def test_tc_grd_02_grades_page_shows_gpa_cgpa_and_transcript_link(client, login_as):
+    faculty, headers = login_as("faculty")
+    student, student_headers = login_as("student")
+    finalise_course(client, headers, faculty, student, "CS101", 4, 85)
+    finalise_course(client, headers, faculty, student, "MA101", 3, 75)
+    page = client.get("/ui/student/grades", headers=student_headers).data
+    assert b"CS101" in page and b"Term 2026-ODD" in page
+    assert b"Term GPA: 8.57" in page and b"CGPA: 8.57" in page
+    assert f'href="/reports/transcript/{student.student.id}"'.encode() in page
+
+
+def test_tc_grd_02_grades_page_when_nothing_is_posted_and_roles(client, login_as):
+    _, student = login_as("student")
+    _, faculty = login_as("faculty")
+    page = client.get("/ui/student/grades", headers=student).data
+    assert b"No grades have been posted yet" in page
+    assert client.get("/ui/student/grades", headers=faculty).status_code == 403
+    assert client.get("/ui/student/grades").status_code == 302
+
+
+def test_tc_grd_02_marks_page_has_finalise_button_until_finalised(client, login_as):
+    faculty, headers = login_as("faculty")
+    section = make_section(faculty)
+    assessment = add_assessment(section, "Final", 100)
+    student, _ = login_as("student")
+    enroll(student, section)
+    post_mark(client, headers, assessment, student, 70)
+    url = f"/ui/faculty/marks?sectionId={section.id}"
+    page = client.get(url, headers=headers).data
+    assert b'data-api="/grades/finalize"' in page
+    assert finalise(client, headers, section).status_code == 200
+    page = client.get(url, headers=headers).data
+    assert b'data-api="/grades/finalize"' not in page
+    assert b'data-api="/grades/marks"' not in page
+    assert b'data-api="/grades/assessments"' not in page
+    assert b"finalised and read-only" in page
+    assert b"<span>70</span>" in page

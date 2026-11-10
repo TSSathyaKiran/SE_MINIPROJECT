@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Grades and transcript · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Grades and transcript</h1>
+
+{% if not data.terms %}
+<p>No grades have been posted yet.</p>
+{% endif %}
+
+{% for term in data.terms %}
+<h2 class="h5">Term {{ term.term }}</h2>
+<div class="table-responsive">
+  <table class="table table-striped">
+    <caption class="visually-hidden">Grades for term {{ term.term }}</caption>
+    <thead>
+      <tr><th scope="col">Code</th><th scope="col">Course</th><th scope="col">Credits</th>
+          <th scope="col">Grade</th><th scope="col">Points</th></tr>
+    </thead>
+    <tbody>
+      {% for c in term.courses %}
+      <tr>
+        <td>{{ c.code }}</td><td>{{ c.name }}</td><td>{{ c.credits }}</td>
+        <td>{{ c.grade }}</td><td>{{ "%g"|format(c.point) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="mb-4">Term GPA: {{ "%.2f"|format(term.gpa) if term.gpa is not none else "N/A" }}</p>
+{% endfor %}
+
+{% if data.terms %}
+<p class="h5">CGPA: {{ "%.2f"|format(data.cgpa) if data.cgpa is not none else "N/A" }}</p>
+{% endif %}
+
+<a class="btn btn-outline-primary mt-3" href="/reports/transcript/{{ student_id }}">
+  Download unofficial transcript (PDF)</a>
+{% endblock %}

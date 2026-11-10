@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Notifications · SRS-App{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Notifications</h1>
+
+{% if not notifications %}
+<p>You have no notifications yet.</p>
+{% else %}
+<ul class="list-group">
+  {% for n in notifications %}
+  <li class="list-group-item d-flex justify-content-between align-items-start gap-3">
+    <div>
+      <div>
+        {% if not n.read %}<span class="badge text-bg-primary me-2">New</span>{% endif %}{{ n.message }}
+      </div>
+      <small class="text-muted">{{ n.created_at.strftime("%d %b %Y, %H:%M") if n.created_at else "" }}</small>
+    </div>
+    {% if n.read %}
+    <span class="badge text-bg-secondary">Read</span>
+    {% else %}
+    <form data-api="/notifications/{{ n.id }}/read" data-reload data-success="Marked as read.">
+      <button class="btn btn-outline-primary btn-sm"
+              aria-label="Mark as read: {{ n.message }}">Mark as read</button>
+      <div class="form-msg mt-2" role="alert"></div>
+    </form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

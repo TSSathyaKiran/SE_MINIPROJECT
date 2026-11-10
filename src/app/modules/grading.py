@@ -2,22 +2,54 @@
 
   POST /grades/assessments   faculty  {sectionId, name, maxMarks}  (the section's faculty)
   POST /grades/marks         faculty  {assessmentId, studentId, score}  403 after grade lock
-  POST /grades/finalize      faculty  {sectionId}                       (issue #19)
-  GET  /ui/faculty/marks     faculty page: my sections, assessments, marks
+  POST /grades/finalize      faculty  {sectionId}  409 already finalised / no assessments /
+                                      no students / marks missing
+  GET  /grades/<studentId>   that student or admin: terms, term GPA and CGPA
+  GET  /ui/faculty/marks     faculty page: my sections, assessments, marks, Finalise button
+  GET  /ui/student/grades    student page: grades per term, GPA, CGPA, transcript link
 """
 import math
 
 from flask import Blueprint, jsonify, render_template, request
+from sqlalchemy.exc import IntegrityError
 
 from ..core import clock
 from ..core.audit import audit
 from ..core.errors import ApiError, as_float, as_int, get_json, required
-from ..core.security import current_user, require_role
-from ..core.settings import get_date
+from ..core.security import current_user, require_login, require_role
+from ..core.settings import get_date, get_setting
 from ..extensions import db
-from ..models import Assessment, Course, Enrollment, Mark, Section, Student, Term
+from ..models import Assessment, Course, Enrollment, Grade, Mark, Section, Student, Term
+from .notifications import notify
+from .reports import transcript_data
 
 bp = Blueprint("grading", __name__)
+
+
+def gpa(items):
+    """Credit-weighted average grade point. items = [(credits, grade_point), ...].
+
+    The same formula gives a term GPA (one term's courses) and the CGPA (all terms'
+    courses together), so a CGPA is never an average of term GPAs.
+    """
+    total_credits = sum(credits for credits, _ in items)
+    if total_credits == 0:
+        return 0.0
+    return round(sum(credits * point for credits, point in items) / total_credits, 2)
+
+
+def grade_for(percent):
+    """(letter, grade point) for a percentage, from the admin grading scale.
+
+    The scale is a list of [minimum %, letter, grade point] rows. The rows are sorted
+    here so an admin-edited scale works in any order. Never hard-code the scale.
+    """
+    percent = round(percent, 6)         # removes floating-point noise such as 89.99999999
+    scale = sorted(get_setting("grading_scale"), key=lambda row: row[0], reverse=True)
+    for minimum, letter, point in scale:
+        if percent >= minimum:
+            return letter, point
+    return "F", 0                       # below every row: the lowest grade
 
 
 def section_of_this_faculty(section_id):
@@ -30,11 +62,19 @@ def section_of_this_faculty(section_id):
     return section
 
 
+def is_finalised(section_id):
+    """Grades have been posted for this section."""
+    return Grade.query.filter_by(section_id=section_id).first() is not None
+
+
 @bp.post("/grades/assessments")
 @require_role("faculty")
 def create_assessment():
     data = required(get_json(), "sectionId", "name", "maxMarks")
     section = section_of_this_faculty(as_int(data["sectionId"], "sectionId"))
+    if is_finalised(section.id):
+        raise ApiError(409, "already_finalised",
+                       "Grades for this section are already finalised")
     name = str(data["name"]).strip()
     max_marks = as_float(data["maxMarks"], "maxMarks")
     if len(name) > 80:
@@ -64,8 +104,14 @@ def enter_mark():
     assessment = db.session.get(Assessment, assessment_id)
     if assessment is None:
         raise ApiError(404, "assessment_not_found", "That assessment does not exist")
-    section_of_this_faculty(assessment.section_id)
+    section = section_of_this_faculty(assessment.section_id)
 
+    # Once grades are posted, marks are frozen: a change would no longer match the grade
+    # and the notification the student already received.
+    if is_finalised(section.id):
+        raise ApiError(409, "already_finalised",
+                       "Grades for this section are already finalised; "
+                       "marks can no longer be changed")
     # The last day itself is still open; the date comes from admin settings.
     if clock.today() > get_date("grade_lock_date"):
         raise ApiError(403, "grades_locked",
@@ -96,6 +142,76 @@ def enter_mark():
         (201 if created else 200)
 
 
+@bp.post("/grades/finalize")
+@require_role("faculty")
+def finalize_grades():
+    data = required(get_json(), "sectionId")
+    section = section_of_this_faculty(as_int(data["sectionId"], "sectionId"))
+    if is_finalised(section.id):
+        raise ApiError(409, "already_finalised",
+                       "Grades for this section are already finalised")
+
+    assessments = Assessment.query.filter_by(section_id=section.id).all()
+    if not assessments:
+        raise ApiError(409, "no_assessments", "This section has no assessments to grade")
+    # Only students who are still enrolled get a grade; dropped students are ignored.
+    enrollments = (Enrollment.query.filter_by(section_id=section.id, status="enrolled")
+                   .order_by(Enrollment.id).all())
+    if not enrollments:
+        raise ApiError(409, "no_students", "This section has no enrolled students")
+
+    marks = {(m.assessment_id, m.student_id): m.score
+             for m in Mark.query.filter(
+                 Mark.assessment_id.in_([a.id for a in assessments])).all()}
+    missing = [e for e in enrollments
+               if any((a.id, e.student_id) not in marks for a in assessments)]
+    if missing:
+        # A missing mark is never counted as 0 (that would hand out a wrong F).
+        # The message gives the count only: no student names or numbers.
+        raise ApiError(409, "marks_missing",
+                       f"{len(missing)} enrolled student(s) have no mark for "
+                       "every assessment")
+
+    total_max = sum(a.max_marks for a in assessments)
+    try:
+        for enrollment in enrollments:
+            total = sum(marks[(a.id, enrollment.student_id)] for a in assessments)
+            letter, point = grade_for(total * 100 / total_max)
+            grade = Grade(student_id=enrollment.student_id, section_id=section.id,
+                          grade=letter, grade_point=point)
+            db.session.add(grade)
+            db.session.flush()          # gives grade.id for the audit entry
+            audit("finalise", "grade", grade.id)
+            if enrollment.student.user_id is not None:
+                notify(enrollment.student.user_id,
+                       f"Final grade posted for {section.course.code}: {letter}")
+        db.session.commit()             # grades and notifications are saved together, or none
+    except IntegrityError:              # two finalise requests at the same moment
+        db.session.rollback()
+        raise ApiError(409, "already_finalised",
+                       "Grades for this section are already finalised")
+    return jsonify(status="finalised", count=len(enrollments))
+
+
+@bp.get("/grades/<int:student_id>")
+@require_login
+def student_grades(student_id):
+    user = current_user()
+    if user.role == "student":
+        own = Student.query.filter_by(user_id=user.id).first()
+        if own is None or own.id != student_id:
+            raise ApiError(403, "forbidden", "You can only view your own grades")
+    elif user.role != "admin":
+        raise ApiError(403, "forbidden", "Only the student or an admin can view grades")
+
+    student = db.session.get(Student, student_id)
+    if student is None:
+        raise ApiError(404, "not_found", "Student not found")
+    # The same numbers as the transcript PDF, so the page and the PDF always agree.
+    data = transcript_data(student)
+    return jsonify(student=data["student"], terms=data["terms"], cgpa=data["cgpa"])
+
+
 @bp.get("/ui/faculty/marks")
 @require_role("faculty")
 def marks_page():
@@ -105,10 +221,11 @@ def marks_page():
                 .filter(Section.faculty_id == current_user().id)
                 .order_by(Term.name.desc(), Course.code, Section.name).all())
 
-    selected, assessments, students, marks = None, [], [], {}
+    selected, assessments, students, marks, finalised = None, [], [], {}, False
     section_id = request.args.get("sectionId")
     if section_id not in (None, ""):
         selected = section_of_this_faculty(as_int(section_id, "sectionId"))
+        finalised = is_finalised(selected.id)
         assessments = (Assessment.query.filter_by(section_id=selected.id)
                        .order_by(Assessment.id).all())
         students = (Student.query
@@ -123,4 +240,15 @@ def marks_page():
     lock_date = get_date("grade_lock_date")
     return render_template("grading/marks.html", sections=sections, selected=selected,
                            assessments=assessments, students=students, marks=marks,
-                           lock_date=lock_date, locked=clock.today() > lock_date)
+                           lock_date=lock_date, locked=clock.today() > lock_date,
+                           finalised=finalised)
+
+
+@bp.get("/ui/student/grades")
+@require_role("student")
+def grades_page():
+    student = current_user().student
+    if student is None:
+        raise ApiError(403, "forbidden", "This account has no student record")
+    return render_template("grading/grades.html", data=transcript_data(student),
+                           student_id=student.id)
