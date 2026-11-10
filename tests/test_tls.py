@@ -67,6 +67,19 @@ def test_tls_1_1_client_is_refused(cert_pair):
     client = ssl.create_default_context()
     client.check_hostname = False
     client.verify_mode = ssl.CERT_NONE
+    client.maximum_version = ssl.TLSVersion.TLSv1_1
+    with pytest.raises(ssl.SSLError):
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
+            client.wrap_socket(sock, server_hostname="localhost")
+    thread.join(timeout=5)
+
+
+def test_tls_1_2_client_is_accepted(cert_pair):
+    ctx = run.make_ssl_context(*cert_pair)
+    port, errors, thread = _serve_once(ctx)
+    client = ssl.create_default_context()
+    client.check_hostname = False
+    client.verify_mode = ssl.CERT_NONE
     client.minimum_version = ssl.TLSVersion.TLSv1_2
     client.maximum_version = ssl.TLSVersion.TLSv1_2
     with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
