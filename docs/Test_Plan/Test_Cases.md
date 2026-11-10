@@ -306,7 +306,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Run the security checklist covering encryption in transit and at rest, RBAC, and log content.
   2. Search logs, URLs, and error messages for PII.
 - **Expected result:** All checklist items pass; no PII appears in logs, URLs, or error messages.
-- **Status:** Partly passed (2026-11-08, 10 of 12 items in `docs/security/PII_CHECKLIST.md` pass, including no PII in errors, URLs or logs; TLS and debug mode off wait on #10)
+- **Status:** Passed (2026-11-10, all 12 items in `docs/security/PII_CHECKLIST.md` pass; encryption in transit and debug mode off were closed by #10)
 
 ## TC-Sec-02: TLS 1.2+ enforced
 
@@ -317,7 +317,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Scan the deployed HTTPS endpoint.
   2. Attempt connections using TLS 1.0 and 1.1.
 - **Expected result:** TLS 1.0/1.1 connections are refused; TLS 1.2+ is accepted. (Localhost demo is exempt.)
-- **Status:** Not tested
+- **Status:** Passed (2026-11-10, testssl.sh against HTTPS on localhost:8000: TLS 1.0 and 1.1 not offered, TLS 1.2 and 1.3 offered; 4 automated checks in `tests/test_tls.py`; details in `docs/security/TLS_ZAP_SCAN.md`)
 
 ## TC-Sec-03: RBAC enforced at the API layer
 
