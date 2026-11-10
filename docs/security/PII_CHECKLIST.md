@@ -18,7 +18,7 @@ and record the result in `docs/Test_Plan/Test_Cases.md`.
 
 | # | Check | How it is done | Evidence | Result |
 | --- | --- | --- | --- | --- |
-| 1 | Encrypted in transit | HTTPS with TLS 1.2+ | TC-Sec-02, issue #10 | Pending (#10) |
+| 1 | Encrypted in transit | HTTPS with TLS 1.2+ | HTTPS mode with TLS 1.2 minimum, TLS 1.0/1.1 not offered (#10) | Pass (2026-11-10) |
 | 2 | Encrypted at rest | Email, phone and address are stored as Fernet ciphertext | `test_tc_sec_05_*` in `tests/test_crypto.py` | Pass |
 | 3 | Keys kept out of the code and never public | `SECRET_KEY` and `PII_KEY` come from `.env`, which git ignores; the app refuses to start if either is missing or an example value, or `PII_KEY` is not a valid key | `test_tc_sec_05_app_refuses_to_start_without_real_keys`, `.gitignore` | Pass |
 | 4 | Role checks on every API route | `require_role` / `require_login` on each route; ownership checked for student records | `test_tc_auth_02_and_tc_sec_03_roles_enforced_on_api` and each module's 403 tests | Pass |
@@ -29,7 +29,7 @@ and record the result in `docs/Test_Plan/Test_Cases.md`.
 | 9 | No PII in logs | The app writes no log file of its own; the audit log keeps who, action, record type, id and time; the server log shows method, path and status | `test_tc_sec_01_audit_log_holds_no_pii` | Pass |
 | 10 | Search leaves out contact details | `search_json()` in `modules/students.py` | `test_tc_stu_04_results_leave_out_contact_details` | Pass |
 | 11 | Audit log cannot be changed | The ORM refuses, and a database trigger blocks UPDATE and DELETE | `test_tc_sec_07_audit_rows_cannot_be_changed` | Pass |
-| 12 | Debug mode off outside development | `python src/run.py` starts with `debug=True`, whose crash page shows variable values | Production setup in #10 | Pending (#10) |
+| 12 | Debug mode off outside development | `python src/run.py` starts with debug off; `FLASK_DEBUG=1` opts in, so the crash page with variable values never appears by default (#10) | Pass (2026-11-10) |
 
 ## Manual check
 

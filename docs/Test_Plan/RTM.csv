@@ -26,7 +26,7 @@ SRS-NF-003,"PII protection in transit and at rest",5,DS-Sec-01,"Database/Securit
 SRS-NF-004,"Record and audit-log retention (7 years)",5,DS-Ops-02,"Database/Backup",TC-Ops-02,P
 SRS-NF-005,"Accessibility: WCAG 2.1 AA",5,DS-UX-01,"WebUI",TC-UX-01,N
 SRS-NF-006,"Concurrency: 1,000 active users",5,DS-Perf-02,"WebUI / API",TC-Perf-02,N
-SRS-SR-001,"TLS 1.2+ mandatory",6.2,DS-Sec-02,"Deployment/Security",TC-Sec-02,N
+SRS-SR-001,"TLS 1.2+ mandatory",6.2,DS-Sec-02,"Deployment/Security",TC-Sec-02,P
 SRS-SR-002,"RBAC enforced at server/API layer",6.2,DS-Sec-03,"Auth/API",TC-Sec-03,N
 SRS-SR-003,"Salted password hashing (bcrypt/Argon2)",6.2,DS-Sec-04,"Auth Module",TC-Sec-04,N
 SRS-SR-004,"Sensitive PII encrypted at rest",6.2,DS-Sec-05,"Database",TC-Sec-05,P
