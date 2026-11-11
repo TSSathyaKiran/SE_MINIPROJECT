@@ -1,0 +1,11 @@
+Could not find platform independent libraries <prefix>
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-8.3.4, pluggy-1.7.0
+rootdir: C:\Users\peris\SE_MINIPROJECT
+configfile: pytest.ini
+collected 4 items
+
+tests\ui\test_login_flow.py ....                                         [100%]
+
+- generated xml file: C:\Users\peris\SE_MINIPROJECT\docs\Test_Plan\results\selenium-login-results.xml -
+============================= 4 passed in 18.30s ==============================

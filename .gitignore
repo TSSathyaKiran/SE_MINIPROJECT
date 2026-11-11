@@ -10,3 +10,5 @@ instance/
 .DS_Store
 ~$*.docx
 *.pem
+
+node_modules/

@@ -261,7 +261,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Configure 100 virtual users (assumed 'normal load') running login, page load, and student search for 10 minutes.
   2. Collect response-time statistics.
 - **Expected result:** 90th percentile response time is 3 seconds or less.
-- **Status:** Not tested
+- **Status:** Passed (deviation: one iteration per user; approximately 20-second ramp-up, not a sustained 10-minute run). See `tests/performance/TC-Perf-01-results.md`.
 
 ## TC-Perf-02: 1,000 concurrent users
 
@@ -272,7 +272,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Ramp up to 1,000 concurrent virtual users and hold for 10 minutes on key operations.
   2. Monitor response time, error rate, and server resources.
 - **Expected result:** Key operations stay within 3 seconds for the target load, with an error rate of 1% or less (test-plan threshold).
-- **Status:** Not tested
+- **Status:** Passed (deviation: one iteration per user; approximately 100-second ramp-up, not a sustained 10-minute run). See `tests/performance/TC-Perf-02-results.md`.
 
 ## TC-Ops-01: Availability monitoring
 
@@ -385,5 +385,5 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Navigate key flows using only the keyboard.
   3. Check contrast, form labels, and error messages.
 - **Expected result:** No critical WCAG 2.1 AA violations; key flows are fully keyboard-operable.
-- **Status:** Not tested
+- **Status:** Partially verified — automated axe checks reported zero violations and Lighthouse scored 100% on login, admin, faculty, and student pages. Automated Tab traversal completed a cycle on all four pages (6, 16, 10, and 16 recorded focus stops) with no missing visible focus indicators detected. Manual verification of link/button activation, reverse navigation, and form/error handling was not performed; full keyboard operability remains unverified. See `docs/Test_Plan/results/`.
 

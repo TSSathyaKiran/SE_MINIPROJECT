@@ -7,3 +7,11 @@
 .form-msg:empty {
   display: none;
 }
+
+
+/* Accessibility: maintain readable contrast on the primary navbar. */
+.navbar .nav-link,
+.navbar .navbar-text,
+.navbar .btn-outline-light {
+  color: #fff;
+}
