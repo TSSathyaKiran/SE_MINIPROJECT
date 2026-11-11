@@ -12,7 +12,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Enter a registered username/email and the correct password; submit.
   3. Repeat with a wrong password, and with an unregistered username.
 - **Expected result:** Valid credentials create a session and open the role's dashboard. Invalid attempts show an error message and create no session.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, a valid login creates a session and cookie; a wrong password or unknown user gets 401 `invalid_credentials` and no session; `tests/test_auth.py`)
 
 ## TC-Auth-02: Role-based access for each role
 
@@ -23,7 +23,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Log in as Student, Faculty, Admin (and Parent/Guardian if enabled) in turn.
   2. For each role, try every menu function and also open other roles' pages by direct URL.
 - **Expected result:** Each role can use only its permitted functions; all other pages/actions are denied.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, each role opens only its own dashboard and pages; the full role matrix is checked on every route in `tests/test_rbac.py`; `tests/test_auth.py`)
 
 ## TC-Auth-03: Account lockout after 5 failed logins
 
@@ -35,7 +35,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. On the 6th attempt, enter the correct password.
   3. Check the audit log.
 - **Expected result:** 6th attempt is blocked with a locked-account message, and a lockout event is recorded in the audit log.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, the 6th attempt with the right password gets 423 `account_locked` and no session, and a `lock` entry is in the audit log; `tests/test_auth.py`)
 
 ## TC-Stu-01: Admin creates a student record
 
@@ -47,7 +47,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Try again with one mandatory field missing.
   3. Try again with a duplicate Student ID.
 - **Expected result:** Valid record is saved with a unique Student ID. Missing-field and duplicate submissions are rejected with clear validation messages.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, created with a unique student number and a login; missing field 400, duplicate student number 409; 7 checks in `tests/test_students.py`)
 
 ## TC-Stu-02: Update and deactivate a student record
 
@@ -60,7 +60,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   3. Try to log in as the deactivated student.
   4. View the student's historical academic data as Admin.
 - **Expected result:** Update is saved. Deactivated student cannot log in, and all historical data is preserved (soft delete / status flag).
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, update saved; a deactivated student cannot log in and keeps enrollment and grade history; 4 checks in `tests/test_students.py`)
 
 ## TC-Stu-03: Student edits only whitelisted profile fields
 
@@ -72,7 +72,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Try to edit name, program, and Student ID in the UI.
   3. Send a tampered request that includes a locked field.
 - **Expected result:** Phone and address are saved. Core academic fields are locked in the UI and rejected server-side.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, phone and address saved; name, program and student number refused with 400 `locked_field` and nothing changed; 4 checks in `tests/test_students.py`)
 
 ## TC-Stu-04: Search students by ID or name
 
@@ -83,7 +83,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. As Faculty/Admin, search by full Student ID, by partial name, and by a non-existent value.
   2. As Student, try to search other students.
 - **Expected result:** Matching records are displayed; 'no results' is shown for no match; Student role cannot search other students.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, full number, partial number and partial name match; no match returns an empty list; students get 403; 8 checks in `tests/test_students_search.py`)
 
 ## TC-Enr-01: Create courses, sections, and terms
 
@@ -95,7 +95,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Open the section list as a Student.
   3. Try to create a course with an existing course code.
 - **Expected result:** Course and section appear under the correct term. Duplicate course code is rejected.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, term, course and section created and listed under their term; duplicate course code refused; 12 checks in `tests/test_courses.py`)
 
 ## TC-Enr-02: Enrollment rules: seats and prerequisites
 
@@ -108,7 +108,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   3. Attempt enrollment with an unmet prerequisite.
   4. Attempt to enroll in the same section twice.
 - **Expected result:** Only the first attempt succeeds. Full section, unmet prerequisite, and duplicate enrollment are rejected with an explanation.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, an open section with prerequisites met enrolls; full section, unmet prerequisite and duplicate get 409 with the reason; 13 checks in `tests/test_enrollment.py`)
 
 ## TC-Enr-03: Course drop within add/drop period
 
@@ -119,7 +119,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Drop an enrolled course before the configured deadline.
   2. Set the system date (or deadline) so the period has ended; try to drop another course.
 - **Expected result:** Drop before deadline succeeds and the seat is freed. Drop after the deadline is rejected.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, a drop before the deadline frees the seat; after the deadline it gets 403 `drop_closed` and nothing changes; 13 checks in `tests/test_enrollment.py`)
 
 ## TC-Att-01: Faculty marks attendance
 
@@ -132,7 +132,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   3. Check that non-enrolled students are not listed.
   4. Try to open a section assigned to another faculty.
 - **Expected result:** Attendance is saved against the correct date and section for each enrolled student. Other faculty's sections are not accessible.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, present, absent and late saved per date and section; students not enrolled and other faculty's sections refused; 13 checks in `tests/test_attendance.py`)
 
 ## TC-Att-02: Student views attendance percentage
 
@@ -144,7 +144,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Log in as that student and open attendance.
   3. Compare with the attendance table.
 - **Expected result:** Displayed percentage (80%) matches the stored session records. (Treatment of 'Late' in the percentage to be confirmed; see Assumptions.)
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, 8 present of 10 shows 80%; late does not count as present (see `docs/DEVIATIONS.md`); 10 checks in `tests/test_attendance.py`)
 
 ## TC-Grd-01: Marks entry before and after grade-lock date
 
@@ -156,7 +156,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Enter a score above the assessment's maximum marks.
   3. After the lock date, try to edit a score.
 - **Expected result:** Scores save and update before lock. Over-maximum score is rejected. After lock, scores are read-only.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, marks save and update before the lock date; above the maximum gets 400; after the lock date 403 `grades_locked` and the page is read-only; 21 checks in `tests/test_grading.py`)
 
 ## TC-Grd-02: GPA and CGPA calculation
 
@@ -168,7 +168,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Finalise grades.
   3. Add a second term and check CGPA.
 - **Expected result:** Term GPA = 121 / 14 = 8.64. CGPA equals the credit-weighted average across both terms and matches the hand-calculated value.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, the SRS example gives term GPA 8.64 (121 / 14); CGPA is credit-weighted across terms; 32 checks in `tests/test_grading.py`)
 
 ## TC-Grd-03: Grade-posted notification
 
@@ -180,7 +180,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Finalise grades for a section.
   3. Log in as an affected student.
 - **Expected result:** An in-app notification is recorded for each affected student only after finalisation.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, no notification before finalising; one per enrolled student after; none for a failed or repeated finalise; 9 checks in `tests/test_grading.py` and `tests/test_notifications.py`)
 
 ## TC-Rep-01: Unofficial transcript PDF
 
@@ -192,7 +192,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Open the PDF and compare against stored records.
   3. Try to fetch another student's transcript by changing the ID in the URL.
 - **Expected result:** PDF lists all completed terms, subjects, grades, GPA/CGPA correctly. Another student's transcript is denied.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, transcript PDF for S1001 opened and compared with the stored grades: completed term, courses, grades, GPA and CGPA 8.57 match and the in-progress term is left out; another student's transcript gets 403; `tests/test_reports.py`)
 
 ## TC-Rep-02: Official report card
 
@@ -203,7 +203,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. As Admin, select a student and term; generate the report card.
   2. Try the same as Student and as Faculty.
 - **Expected result:** Report card contains institution details, student details, and term grades. Non-Admin roles cannot generate it.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, report card PDF for S1001, 2025-EVEN opened: institution, student details and term grades match; student and faculty get 403; 5 checks in `tests/test_reports.py`)
 
 ## TC-Fee-01: Fee balance and payment-status history
 
@@ -215,7 +215,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Log in as that student and open the fee page.
   3. Look for any edit or pay controls.
 - **Expected result:** Displayed balance and history match stored records. Page is read-only with no payment processing.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, balance and history match the stored fee rows; the page has no edit or pay controls and the API has no write route; 7 checks in `tests/test_fees.py`)
 
 ## TC-Fee-02: Enrollment restriction for overdue fees
 
@@ -228,7 +228,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   3. Reduce the balance below the threshold; try again.
   4. Change the threshold as Admin and retry.
 - **Expected result:** Enrollment is blocked with an explanation above the threshold, allowed below it, and a changed threshold takes effect.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, overdue above the threshold gets 409 `fees_overdue`; below it enrolls; a changed threshold takes effect; 5 checks in `tests/test_fees.py`)
 
 ## TC-Adm-01: Academic configuration is applied
 
@@ -239,7 +239,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. As Admin, set a new grading scale, a term, and an add/drop deadline.
   2. Run a GPA calculation and a drop attempt around the new deadline.
 - **Expected result:** New configuration is used by the affected transactions (GPA uses new scale; drop follows new deadline).
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, the saved grading scale is used by finalise and the saved add/drop deadline by drop; invalid settings refused; 11 checks in `tests/test_admin.py`)
 
 ## TC-Adm-02: Audit log entries for mutations
 
@@ -250,7 +250,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Perform create, update, deactivate, grade change, and attendance change actions.
   2. View the audit log as Admin.
 - **Expected result:** Each action has an entry with actor, timestamp, action, and record ID.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, create, update, deactivate and attendance changes are each logged with actor, timestamp, action and record ID, and mark entry and finalising are audited too; `tests/test_auditlog.py`, `tests/test_grading.py`)
 
 ## TC-Perf-01: Response time under normal load
 
@@ -329,7 +329,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Request another student's records with a Student token.
   3. Call endpoints with no token.
 - **Expected result:** Unauthorised calls return 403 (or 401 without token). No data is returned.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, every route checked against the role matrix: no token gets 401 with only an error body (pages redirect to login), each role gets 403 outside its routes, and a student gets 403 on another student's records; 4 checks in `tests/test_rbac.py` (pytest instead of Postman, see `docs/DEVIATIONS.md`))
 
 ## TC-Sec-04: Password hashing
 
@@ -340,7 +340,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   1. Create two users with the same password.
   2. Inspect the users table in the database.
 - **Expected result:** Only salted bcrypt/Argon2 hashes are stored; no plaintext; the two hashes differ.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, users table inspected: bcrypt `$2b$12$` hashes, three students with the same password have different hashes, and the password is nowhere in the database file; `tests/test_auth.py`)
 
 ## TC-Sec-05: PII encrypted at rest
 
@@ -363,7 +363,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
   2. Perform any action; also replay the old session token against the API.
   3. Repeat with activity at 14 minutes.
 - **Expected result:** After 15 idle minutes the session is invalid and re-authentication is required. Activity within the window keeps the session alive.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, activity at 14 minutes keeps the session; after 15 idle minutes the API gets 401 and the old token stays invalid; `tests/test_auth.py` with the test clock)
 
 ## TC-Sec-07: Audit log is tamper-protected
 
@@ -373,7 +373,7 @@ One test case per SRS requirement (33 requirements, 33 test cases). The same con
 - **Steps:**
   1. Try to edit or delete audit records from the UI, the API, and with the application's database account.
 - **Expected result:** All attempts are denied; audit records remain unchanged.
-- **Status:** Not tested
+- **Status:** Passed (2026-11-11, the API has no edit or delete route (405); ORM changes raise; raw UPDATE and DELETE with the database account fail with "audit_logs is append-only" and the row is unchanged; `tests/test_auditlog.py`)
 
 ## TC-UX-01: WCAG 2.1 AA accessibility
 
