@@ -76,7 +76,7 @@
             <input id="score-{{ a.id }}-{{ st.id }}" name="score" type="number" step="any"
                    min="0" max="{{ a.max_marks }}"
                    value="{{ '%g'|format(score) if score is not none else '' }}"
-                   class="form-control form-control-sm" style="width: 6rem" required>
+                   class="form-control form-control-sm w-6rem" required>
             <button class="btn btn-primary btn-sm">Save</button>
             <div class="form-msg" role="alert"></div>
           </form>
@@ -90,11 +90,10 @@
 </div>
 
 {% if not finalised %}
-<form data-api="/grades/finalize" data-reload data-success="Grades finalised." class="mt-4">
+<form data-api="/grades/finalize" data-reload data-success="Grades finalised." class="mt-4"
+      data-confirm="Finalise the grades for this section? Marks can no longer be changed afterwards.">
   <input type="hidden" name="sectionId" value="{{ selected.id }}">
-  <button class="btn btn-danger"
-          onclick="return confirm('Finalise the grades for this section? Marks can no longer be changed afterwards.');">
-    Finalise grades</button>
+  <button class="btn btn-danger">Finalise grades</button>
   <div class="form-text">Every enrolled student needs a mark for every assessment. Students are notified when you finalise.</div>
   <div class="form-msg mt-2" role="alert"></div>
 </form>

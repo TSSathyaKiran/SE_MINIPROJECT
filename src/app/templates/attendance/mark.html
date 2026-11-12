@@ -69,7 +69,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 const attendanceForm = document.getElementById("attendance-form");
 if (attendanceForm) {
   attendanceForm.addEventListener("submit", async (event) => {

@@ -10,6 +10,7 @@
 //   data-reload          reload the page after success
 //   data-redirect="/x"   go to /x after success
 //   data-success="..."   success message (default "Saved.")
+//   data-confirm="..."   ask first; nothing is sent if the user cancels
 //
 // For anything custom, call api(method, path, body) yourself; it returns the
 // JSON response or throws an Error with the server's message.
@@ -42,6 +43,7 @@ document.addEventListener("submit", async (event) => {
   const form = event.target.closest("form[data-api]");
   if (!form) return;
   event.preventDefault();
+  if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
   const method = (form.dataset.method || "POST").toUpperCase();
   const body = method === "DELETE" ? null : Object.fromEntries(new FormData(form));
   try {

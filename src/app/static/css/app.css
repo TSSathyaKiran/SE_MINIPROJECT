@@ -8,6 +8,11 @@
   display: none;
 }
 
+/* Sizes used by templates (no style="..." attributes: the CSP blocks them) */
+.w-6rem { width: 6rem; }
+.mw-32rem { max-width: 32rem; }
+.mw-40rem { max-width: 40rem; }
+
 
 /* Accessibility: maintain readable contrast on the primary navbar. */
 .navbar .nav-link,
