@@ -9,15 +9,15 @@ coverage and branch coverage reports, which are in `docs/reports/` (section 6).
 
 ## 1. What was tested
 
-- **Automated suite** on `main` with #15 merged: **257 tests, all passing** (pytest,
+- **Automated suite** on `main` with #15 merged: **268 tests, all passing** (pytest,
   SQLite in memory, about 10 s). Run it with the same command as CI:
   `pytest -q tests --ignore=tests/ui --ignore=tests/performance --ignore=tests/security`.
   Tests are named after their test case (`test_tc_<area>_<nn>_...`). Eight of them
   (`tests/test_system.py`) start the app on a local port with the demo data. They then go
   through every SRS 7.3 acceptance suite over real HTTP.
-- **Browser tests** (Selenium, headless Chrome, run locally on 2026-11-12): the login flow
-  (`tests/ui/test_login_flow.py`, 4 passed) and the keyboard-only flows for every role
-  (`tests/ui/test_keyboard_flows.py`, 5 passed).
+- **Browser tests** (Selenium, headless Chrome, 2026-11-12; CI runs them too, in the `ui`
+  job): the login flow (`tests/ui/test_login_flow.py`, 4 passed) and the keyboard-only flows
+  for every role (`tests/ui/test_keyboard_flows.py`, 5 passed).
 - **Postman collection** for TC-Sec-03, run with Newman against `python src/run.py` and the
   demo data (2026-11-12): 23 of 23 assertions passed.
 - **Manual checks** on a freshly seeded database: transcript and report card PDFs opened
@@ -89,35 +89,38 @@ done by hand (see `docs/DEVIATIONS.md`).
 ## 5. Open items
 
 1. **Sustained load runs** for TC-Perf-01 and TC-Perf-02 not done (section 4).
-2. **ZAP findings, not fixed:** missing CSP, anti-clickjacking, HSTS and
-   X-Content-Type-Options headers; missing Subresource Integrity; `Server` version header
-   exposed. See `docs/security/TLS_ZAP_SCAN.md`. The scan covered the public login pages
-   only.
-3. **testssl LUCKY13 note:** CBC ciphers offered (potentially vulnerable, experimental
-   check). Cipher hardening not done.
-4. **Selenium tests** (`tests/ui/`) need `selenium` and Chrome, which are not in
-   `requirements.txt`, so CI skips them. Their last runs (2026-11-12) are in
-   `docs/reports/results/selenium-login-run.txt` and
-   `docs/Test_Plan/results/keyboard-flows-run.txt`. A plain `pytest` without selenium
-   installed stops at `tests/ui/`; use the CI command in section 1.
+2. **Scanner re-runs:** the ZAP findings and the CBC suites testssl noted were fixed on
+   2026-11-12:
+   - security headers on every response;
+   - Bootstrap served by the app;
+   - no version in the `Server` header;
+   - AEAD-only TLS 1.2 ciphers.
+
+   Tests, curl and openssl check the fixes (`docs/security/TLS_ZAP_SCAN.md`, "Fixes"), but
+   neither scanner was run again.
+3. **Self-signed certificate:** expected for the localhost demo.
+
+Closed on 2026-11-12:
+- The Selenium tests now run in CI (`ui` job).
+- A plain `pytest` no longer stops at `tests/ui/` when Selenium is not installed.
+- Faculty now get a student's record without email, phone or address, the same as in
+  search.
 
 ## 6. Reports
 
 | Report | Result |
 | --- | --- |
-| `docs/reports/Unit_Test_Report.md` | 257 tests (43 unit, 206 API, 8 system), all passed |
+| `docs/reports/Unit_Test_Report.md` | 268 tests (47 unit, 213 API, 8 system), all passed |
 | `docs/reports/System_Validation_Report.md` | All 6 acceptance criteria in SRS 7.2 met; all 10 SRS 7.3 suites passed |
-| `docs/reports/Code_Coverage_Report.md` | Line coverage 97.7% for the application (`src/app/`), 94.5% overall |
-| `docs/reports/Branch_Coverage_Report.md` | Branch coverage 91.4% for the application, 88.7% overall |
+| `docs/reports/Code_Coverage_Report.md` | Line coverage 97.9% for the application (`src/app/`), 94.8% overall |
+| `docs/reports/Branch_Coverage_Report.md` | Branch coverage 91.6% for the application, 88.9% overall |
 
 The unit and coverage reports are written by `python scripts/make_reports.py` from one
 run of the CI tests with pytest-cov; run it again to refresh them. The code the tests do
-not run is listed line by line in the coverage reports. Most of it is in three groups:
+not run is listed line by line in the coverage reports. Most of it is in two groups:
 
 - **Defensive error paths:** a student login with no student record, names that are too
   long, malformed grading-scale rows, and two finalise requests at the same moment.
-- **The admin Academic settings page:** only the refusal for other roles is tested; the
-  API behind it is fully tested.
 - **The command-line parts of `scripts/backup.py` and `scripts/uptime_check.py`:**
   argument handling and the check loop. `docs/ops/OPERATIONS.md` records hand runs of
   both.

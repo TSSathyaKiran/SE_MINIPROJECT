@@ -1,14 +1,14 @@
-........................................................................ [ 28%]
-........................................................................ [ 56%]
-........................................................................ [ 84%]
-.........................................                                [100%]
+........................................................................ [ 26%]
+........................................................................ [ 53%]
+........................................................................ [ 80%]
+....................................................                     [100%]
 =============================== warnings summary ===============================
 .venv/lib/python3.12/site-packages/reportlab/lib/rl_safe_eval.py:12
   .venv/lib/python3.12/site-packages/reportlab/lib/rl_safe_eval.py:12: DeprecationWarning: ast.NameConstant is deprecated and will be removed in Python 3.14; use ast.Constant instead
     haveNameConstant = hasattr(ast,'NameConstant')
 
 tests/test_tls.py::test_tls_1_1_client_is_refused
-  tests/test_tls.py:70: DeprecationWarning: ssl.TLSVersion.TLSv1_1 is deprecated
+  tests/test_tls.py:73: DeprecationWarning: ssl.TLSVersion.TLSv1_1 is deprecated
     client.maximum_version = ssl.TLSVersion.TLSv1_1
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
@@ -18,19 +18,20 @@ Name                               Stmts   Miss Branch BrPart  Cover   Missing
 ------------------------------------------------------------------------------
 scripts/backup.py                     74     30     16      2    53%   29, 35-37, 41, 59, 75->80, 87-112
 scripts/uptime_check.py               50     23      4      0    54%   55-85
-src/app/__init__.py                   18      0      2      0   100%
+src/app/__init__.py                   20      0      2      0   100%
 src/app/config.py                     30      0      4      0   100%
 src/app/core/__init__.py               0      0      0      0   100%
 src/app/core/audit.py                 15      0      4      0   100%
 src/app/core/clock.py                  8      0      0      0   100%
 src/app/core/crypto.py                16      0      0      0   100%
 src/app/core/errors.py                35      0      4      0   100%
+src/app/core/headers.py               25      0      4      0   100%
 src/app/core/security.py              63      0     14      0   100%
 src/app/core/settings.py              16      1      2      1    89%   30
 src/app/extensions.py                  2      0      0      0   100%
 src/app/models.py                    127      0      0      0   100%
 src/app/modules/__init__.py            4      0      0      0   100%
-src/app/modules/admin.py              81      7     28      3    91%   41-42, 68, 73, 78, 113, 119
+src/app/modules/admin.py              81      5     28      3    93%   41-42, 68, 73, 78
 src/app/modules/attendance.py        110      3     42      6    94%   32->31, 63, 114->117, 124->136, 156, 161
 src/app/modules/auditlog.py           37      0      8      0   100%
 src/app/modules/auth.py               53      0     12      0   100%
@@ -41,11 +42,11 @@ src/app/modules/grading.py           156      6     56      5    95%   52, 81, 1
 src/app/modules/home.py               36      2      0      0    94%   55, 61
 src/app/modules/notifications.py      30      0      4      0   100%
 src/app/modules/reports.py           108      4     26      4    94%   73, 110, 198, 242
-src/app/modules/students.py          124      2     54      3    97%   61, 155->158, 175
+src/app/modules/students.py          126      2     56      3    97%   61, 157->160, 177
 src/encrypt_pii.py                    31      0     12      0   100%
-src/run.py                            11      0      0      0   100%
+src/run.py                            17      0      0      0   100%
 src/seed.py                           41      0     10      0   100%
 ------------------------------------------------------------------------------
-TOTAL                               1533     84    380     31    93%
+TOTAL                               1568     82    386     31    94%
 
-257 passed, 2 warnings in 9.22s
+268 passed, 2 warnings in 10.35s
