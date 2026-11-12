@@ -9,7 +9,7 @@ A web-based student record system for a college: student profiles, courses and s
 
 PES University · Software Engineering mini-project · **Problem Statement No. 12**
 
-**Quick links:** [Sprint board](https://github.com/users/TSSathyaKiran/projects/3) · [Team guide](docs/TEAM_GUIDE.md) · [Backlog](docs/BACKLOG.md) · [Test cases](docs/Test_Plan/Test_Cases.md) · [RTM](docs/Test_Plan/RTM.csv) · [Deviations](docs/DEVIATIONS.md)
+**Quick links:** [Sprint board](https://github.com/users/TSSathyaKiran/projects/3) · [Team guide](docs/TEAM_GUIDE.md) · [Backlog](docs/BACKLOG.md) · [Test cases](docs/Test_Plan/Test_Cases.md) · [RTM](docs/Test_Plan/RTM.csv) · [Test reports](docs/reports/) · [Deviations](docs/DEVIATIONS.md)
 
 ---
 
@@ -144,12 +144,14 @@ Extra helper endpoints and small changes from the SAD are listed in [DEVIATIONS.
 | Layer | Tool | Where |
 | --- | --- | --- |
 | Unit and API tests | pytest, a fresh in-memory database per test | `tests/test_<module>.py` |
+| System test | pytest: the whole app over real HTTP on the demo data, one pass through the SRS 7.3 acceptance suites | `tests/test_system.py` |
 | Continuous integration | GitHub Actions runs every test on each PR and on `main` | `.github/workflows/ci.yml` |
 | API role checks | Postman collection | `tests/postman/` |
-| UI flows | Selenium | `tests/ui/` |
+| UI flows | Selenium: login for each role, key flows with the keyboard only | `tests/ui/` |
 | Performance | JMeter (100 and 1,000 users, P90 response time) | `tests/performance/` |
 | Accessibility | axe / Lighthouse | `docs/Test_Plan/results/` |
 | Security | OWASP ZAP, testssl.sh | `docs/security/` |
+| Reports | Unit test, system validation, code and branch coverage (pytest-cov); `python scripts/make_reports.py` refreshes them | `docs/reports/` |
 
 - Tests are named after the test case they cover, e.g. `test_tc_auth_03_lockout_after_5_failed_logins` for **TC-Auth-03**.
 - All 33 test cases are in [Test_Cases.md](docs/Test_Plan/Test_Cases.md), and the [RTM](docs/Test_Plan/RTM.csv) maps each requirement to its test case and status.

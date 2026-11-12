@@ -1,0 +1,14 @@
+# Coverage settings (pytest-cov). Reports: python scripts/make_reports.py
+# Quick look:  pytest --cov --cov-report=term-missing tests --ignore=tests/ui --ignore=tests/performance --ignore=tests/security
+[run]
+branch = True
+source =
+    src
+    scripts
+# the report script itself is not product code
+omit = scripts/make_reports.py
+
+[report]
+show_missing = True
+exclude_also =
+    if __name__ == .__main__.:

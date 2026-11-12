@@ -1,0 +1,118 @@
+Newman 6.2.1, collection tests/postman/rbac_tc_sec_03.postman_collection.json, against python src/run.py (seeded with python src/seed.py) on port 8010; run on 2026-11-12
+
+newman
+
+SRS-App RBAC checks (TC-Sec-03)
+
+Folder 1. Not logged in (expect 401)
+Sub-folder POST /terms without login
+  POST http://localhost:8010/terms [401 UNAUTHORIZED, 237B, 13ms]
+  Pass  POST /terms without login: status is 401
+
+Sub-folder POST /courses without login
+  POST http://localhost:8010/courses [401 UNAUTHORIZED, 237B, 1ms]
+  Pass  POST /courses without login: status is 401
+
+Sub-folder GET /courses without login
+  GET http://localhost:8010/courses [401 UNAUTHORIZED, 237B, 2ms]
+  Pass  GET /courses without login: status is 401
+
+Sub-folder GET /admin/config without login
+  GET http://localhost:8010/admin/config [401 UNAUTHORIZED, 237B, 2ms]
+  Pass  GET /admin/config without login: status is 401
+
+Sub-folder POST /enroll without login
+  POST http://localhost:8010/enroll [401 UNAUTHORIZED, 237B, 2ms]
+  Pass  POST /enroll without login: status is 401
+
+Folder 2. Login
+Sub-folder Log in as a student
+  POST http://localhost:8010/auth/login [200 OK, 354B, 188ms]
+  Pass  student login: status is 200
+  Pass  login returns a token
+
+Folder 3. Student on admin and faculty routes (expect 403)
+Sub-folder POST /terms (admin only)
+  POST http://localhost:8010/terms [403 FORBIDDEN, 247B, 5ms]
+  Pass  POST /terms (admin only): status is 403
+
+Sub-folder POST /courses (admin only)
+  POST http://localhost:8010/courses [403 FORBIDDEN, 247B, 3ms]
+  Pass  POST /courses (admin only): status is 403
+
+Sub-folder POST /courses/sections (admin only)
+  POST http://localhost:8010/courses/sections [403 FORBIDDEN, 247B, 3ms]
+  Pass  POST /courses/sections (admin only): status is 403
+
+Sub-folder POST /students (admin only)
+  POST http://localhost:8010/students [403 FORBIDDEN, 247B, 3ms]
+  Pass  POST /students (admin only): status is 403
+
+Sub-folder GET /admin/config (admin only)
+  GET http://localhost:8010/admin/config [403 FORBIDDEN, 247B, 3ms]
+  Pass  GET /admin/config (admin only): status is 403
+
+Sub-folder PUT /admin/config (admin only)
+  PUT http://localhost:8010/admin/config [403 FORBIDDEN, 247B, 2ms]
+  Pass  PUT /admin/config (admin only): status is 403
+
+Sub-folder GET /audit-logs (admin only)
+  GET http://localhost:8010/audit-logs [403 FORBIDDEN, 247B, 3ms]
+  Pass  GET /audit-logs (admin only): status is 403
+
+Sub-folder GET /students/search (admin, faculty)
+  GET http://localhost:8010/students/search?q=a [403 FORBIDDEN, 247B, 3ms]
+  Pass  GET /students/search (admin, faculty): status is 403
+
+Sub-folder GET /reports/report-card (admin only)
+  GET http://localhost:8010/reports/report-card?studentId=1&termId=1 [403 FORBIDDEN, 247B, 2ms]
+  Pass  GET /reports/report-card (admin only): status is 403
+
+Sub-folder POST /attendance (faculty only)
+  POST http://localhost:8010/attendance [403 FORBIDDEN, 247B, 2ms]
+  Pass  POST /attendance (faculty only): status is 403
+
+Sub-folder POST /grades/assessments (faculty only)
+  POST http://localhost:8010/grades/assessments [403 FORBIDDEN, 247B, 3ms]
+  Pass  POST /grades/assessments (faculty only): status is 403
+
+Sub-folder POST /grades/marks (faculty only)
+  POST http://localhost:8010/grades/marks [403 FORBIDDEN, 247B, 3ms]
+  Pass  POST /grades/marks (faculty only): status is 403
+
+Sub-folder POST /grades/finalize (faculty only)
+  POST http://localhost:8010/grades/finalize [403 FORBIDDEN, 247B, 2ms]
+  Pass  POST /grades/finalize (faculty only): status is 403
+
+Folder 4. Student on allowed routes (expect 200)
+Sub-folder GET /terms (any logged-in user)
+  GET http://localhost:8010/terms [200 OK, 233B, 3ms]
+  Pass  GET /terms (any logged-in user): status is 200
+
+Sub-folder GET /courses (any logged-in user)
+  GET http://localhost:8010/courses [200 OK, 607B, 4ms]
+  Pass  GET /courses (any logged-in user): status is 200
+
+Sub-folder GET /courses/sections (any logged-in user)
+  GET http://localhost:8010/courses/sections [200 OK, 1.08kB, 6ms]
+  Pass  GET /courses/sections (any logged-in user): status is 200
+
+------------------------------------------------------------------
+|                         |          executed |           failed |
+--------------------------+-------------------+-------------------
+|              iterations |                 1 |                0 |
+--------------------------+-------------------+-------------------
+|                requests |                22 |                0 |
+--------------------------+-------------------+-------------------
+|            test-scripts |                22 |                0 |
+--------------------------+-------------------+-------------------
+|      prerequest-scripts |                 5 |                0 |
+--------------------------+-------------------+-------------------
+|              assertions |                23 |                0 |
+------------------------------------------------------------------
+| total run duration: 484ms                                      |
+------------------------------------------------------------------
+| total data received: 2.78kB (approx)                           |
+------------------------------------------------------------------
+| average response time: 11ms [min: 1ms, max: 188ms, s.d.: 38ms] |
+------------------------------------------------------------------
