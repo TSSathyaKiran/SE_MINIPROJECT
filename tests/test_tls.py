@@ -1,12 +1,15 @@
-"""TC-Sec-02 / TC-Sec-01 support: HTTPS uses TLS 1.2 minimum and debug stays off by default."""
+"""TC-Sec-02 / TC-Sec-01 support: HTTPS uses TLS 1.2 minimum with AEAD ciphers only, debug
+stays off by default, and the server does not say which versions it runs."""
 import os
 import shutil
 import socket
 import ssl
 import subprocess
 import threading
+import urllib.request
 
 import pytest
+from werkzeug.serving import make_server
 
 # run.py builds the dev app on import, so give it throwaway keys first.
 # (conftest imports the package before this file, so env vars would land too late.)
@@ -87,6 +90,39 @@ def test_tls_1_2_client_is_accepted(cert_pair):
             assert tls.version() == "TLSv1.2"
     thread.join(timeout=5)
     assert not errors
+
+
+def test_tls_1_2_offers_only_aead_ciphers(cert_pair):
+    """No CBC suites, so the testssl LUCKY13 note no longer applies."""
+    ctx = run.make_ssl_context(*cert_pair)
+    tls12 = [c for c in ctx.get_ciphers() if c["protocol"] == "TLSv1.2"]
+    assert tls12 and all(c["aead"] and "ECDHE" in c["name"] for c in tls12)
+
+
+def test_tls_1_2_cbc_client_is_refused(cert_pair):
+    ctx = run.make_ssl_context(*cert_pair)
+    port, errors, thread = _serve_once(ctx)
+    client = ssl.create_default_context()
+    client.check_hostname = False
+    client.verify_mode = ssl.CERT_NONE
+    client.maximum_version = ssl.TLSVersion.TLSv1_2
+    client.set_ciphers("ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384")   # CBC only
+    with pytest.raises(ssl.SSLError):
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
+            client.wrap_socket(sock, server_hostname="localhost")
+    thread.join(timeout=5)
+
+
+def test_server_header_has_no_versions(app):
+    server = make_server("127.0.0.1", 0, app, threaded=True, request_handler=run.RequestHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/health") as res:
+            assert res.headers["Server"] == "SRS-App"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
 
 
 def test_debug_off_by_default(monkeypatch):

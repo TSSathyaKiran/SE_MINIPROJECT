@@ -26,3 +26,19 @@ jobs:
         run: |
           # exit code 5 = no tests collected yet; treat that as a pass
           pytest -q tests --ignore=tests/ui --ignore=tests/performance --ignore=tests/security || [ $? -eq 5 ]
+
+  ui:
+    # Selenium tests in headless Chrome (installed on GitHub's Ubuntu runners)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt selenium==4.27.1
+      - name: Run browser tests (login flow, keyboard-only flows)
+        run: pytest -v tests/ui

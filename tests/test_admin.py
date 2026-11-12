@@ -104,6 +104,17 @@ def test_tc_adm_01_rejects_empty_body(client, login_as):
     assert res.json["error"]["code"] == "missing_field"
 
 
+def test_tc_adm_01_settings_page_shows_current_values(client, login_as):
+    _, admin = login_as("admin")
+    client.put("/admin/config", json={"addDropDeadline": "2026-11-15", "feeThreshold": 7500},
+               headers=admin)
+    res = client.get("/ui/admin/config", headers=admin)
+    html = res.get_data(as_text=True)
+    assert res.status_code == 200
+    assert "90,O,10\n80,A+,9" in html                 # the scale, one row per line
+    assert 'value="2026-11-15"' in html and 'value="7500' in html
+
+
 def test_tc_adm_01_config_is_admin_only(client, login_as):
     _, student = login_as("student")
     assert client.get("/admin/config", headers=student).status_code == 403

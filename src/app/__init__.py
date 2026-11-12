@@ -2,6 +2,7 @@ from flask import Flask
 
 from .config import CONFIGS, check_keys
 from .core.errors import register_error_handlers
+from .core.headers import register_security_headers
 from .extensions import db
 
 
@@ -11,6 +12,7 @@ def create_app(config_name="dev"):
     check_keys(app.config)             # before anything touches the database
     db.init_app(app)
     register_error_handlers(app)
+    register_security_headers(app)
 
     from .modules import BLUEPRINTS, register_menu
     for bp in BLUEPRINTS:

@@ -66,3 +66,48 @@ Notes:
   and the `Server` version header. Tracked in the Test Summary Report's open items.
 
 Full reports: `zap-baseline-report.html` and `zap-baseline.json` kept locally.
+
+## Fixes (2026-11-12)
+
+Every finding above that the app can fix is fixed. The checks below ran against
+`HTTPS=1 python src/run.py` with the demo data. ZAP and testssl.sh were not installed on the
+machine used for this, so neither scanner was re-run. The fixes are checked by automated
+tests instead, plus curl and openssl.
+
+| Finding | Fix | Checked by |
+| --- | --- | --- |
+| CSP header not set | `Content-Security-Policy` on every response (`src/app/core/headers.py`): files from this app only, inline scripts need the request's nonce, no `unsafe-inline`, `frame-ancestors 'none'` | `tests/test_headers.py` (also checks every template for inline styles, `on...=` handlers and scripts without the nonce) |
+| Missing anti-clickjacking header | `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'` | `tests/test_headers.py` |
+| Sub Resource Integrity missing; cross-domain JavaScript | Bootstrap 5.3.3 is served by the app from `src/app/static/vendor/` instead of a CDN. The files match the official SRI hashes, so no third-party file is loaded. The pages also work offline | `tests/test_headers.py` |
+| HSTS not set | `Strict-Transport-Security: max-age=31536000; includeSubDomains` on HTTPS responses | `tests/test_headers.py` |
+| X-Content-Type-Options missing | `X-Content-Type-Options: nosniff` | `tests/test_headers.py` |
+| `Server` header leaks versions | `src/run.py` sends `Server: SRS-App` | `tests/test_tls.py` |
+| Re-examine Cache-control | `Cache-Control: no-store` on pages and API responses (they hold personal data); static files can still be cached | `tests/test_headers.py` |
+| testssl LUCKY13 (CBC suites) | TLS 1.2 offers only ECDHE suites with AES-GCM or ChaCha20 (`TLS12_CIPHERS` in `src/run.py`); TLS 1.3 is unchanged | `tests/test_tls.py`: no CBC suite offered, and a CBC-only client is refused |
+
+Not changed: the self-signed certificate (expected for the localhost demo), and the two
+informational alerts. Those alerts are the scanner's own login probe and the
+login request itself.
+
+```
+$ curl -skI https://localhost:8443/ui/login
+HTTP/1.1 200 OK
+Server: SRS-App
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-...'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: same-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Cache-Control: no-store
+
+$ openssl s_client -connect localhost:8443 -tls1_2 -cipher 'ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-SHA'
+...:SSL routines:ssl3_read_bytes:tls alert handshake failure:...:SSL alert number 40
+New, (NONE), Cipher is (NONE)
+
+$ openssl s_client -connect localhost:8443 -tls1_2
+New, TLSv1.2, Cipher is ECDHE-RSA-AES256-GCM-SHA384
+```
+
+Every page was also opened as each role in Chrome with this policy, and the console showed
+no CSP errors. The browser tests in `tests/ui/` pass with these headers, and CI now runs them
+in its `ui` job.
