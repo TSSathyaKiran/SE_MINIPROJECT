@@ -101,6 +101,16 @@ def test_get_student_by_admin_faculty_and_owner(client, login_as):
         assert res.json["id"] == sid
 
 
+def test_get_student_faculty_sees_no_contact_details(client, login_as):
+    _, faculty = login_as("faculty")
+    user, owner = login_as("student")
+    path = f"/students/{user.student.id}"
+    res = client.get(path, headers=faculty)
+    assert res.status_code == 200 and res.json["studentNo"] == user.student.student_no
+    assert not {"email", "phone", "address"} & set(res.json)
+    assert {"email", "phone", "address"} <= set(client.get(path, headers=owner).json)
+
+
 def test_get_student_other_student_returns_403(client, login_as):
     _, mine = login_as("student")
     other, _ = login_as("student")

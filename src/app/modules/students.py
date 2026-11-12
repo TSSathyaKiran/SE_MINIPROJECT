@@ -100,6 +100,8 @@ def get_student(student_id):
     student = db.session.get(Student, student_id)
     if student is None:
         raise ApiError(404, "not_found", "Student not found")
+    if user.role == "faculty":
+        return jsonify(search_json(student))    # like search: no email, phone or address
     return jsonify(student_json(student))
 
 
