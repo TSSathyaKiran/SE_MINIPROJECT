@@ -49,6 +49,8 @@ def live_server():
 def browser():
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")              # needed on the CI's Linux runner
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1365,900")
     # Chrome's own "save password" / "password found in a breach" bubble takes keyboard
     # focus after the demo logins; it is browser UI, not part of the app
