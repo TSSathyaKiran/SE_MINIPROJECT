@@ -12,3 +12,5 @@ instance/
 *.pem
 
 node_modules/
+.coverage
+htmlcov/
