@@ -6,6 +6,7 @@ Final report, after every other issue was merged (#15 last, in PR #67). It repla
 interim report of 2026-11-10. The 2026-11-12 update adds the system-level runs and the
 keyboard check that closes TC-UX-01. It also adds the unit test, system validation, code
 coverage and branch coverage reports, which are in `docs/reports/` (section 6).
+The 2026-11-13 update adds the demo videos (section 7).
 
 ## 1. What was tested
 
@@ -127,8 +128,16 @@ not run is listed line by line in the coverage reports. Most of it is in two gro
 
 ## 7. Demo videos
 
-- Feature demo: _link to be added_
-- Test run demo: _link to be added_
+Screen recordings of the app running on localhost with the demo data (`python src/seed.py`),
+with no sound or captions.
+
+| Video | Recorded | Length | What it shows |
+| --- | --- | --- | --- |
+| [Sprint 1](../demo/Sprint1_Demo.mp4) | 2026-11-04 | 1:53 | The Sprint 1 build: pages built in Sprint 2 show "Coming soon". A login is locked after repeated wrong passwords. The admin creates a student, deactivates the record and adds a course with a prerequisite and a section. Asha enrols in an open section. Dr. Rao marks attendance and searches for students |
+| [Final (Sprint 2)](../demo/Final_Demo.mp4) | 2026-11-13 | 1:57 | Version 1.0. Dr. Rao marks attendance, adds a final exam, enters marks and finalises the CS102 grades. Asha sees the grade notification, her attendance percentage, term GPA 10.00 and CGPA 9.09, the transcript PDF and her fees. Ravi has overdue fees, so his enrolment is blocked. The admin views the audit log filtered to grades, the academic settings and Asha's report card PDF |
+
+The test runs are not filmed. Their logs are in GitHub Actions and in
+`docs/reports/results/` and `docs/Test_Plan/results/`.
 
 ## 8. Deviations
 
