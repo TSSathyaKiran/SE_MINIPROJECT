@@ -7,8 +7,8 @@ profiles · courses · enrollment · attendance · marks · GPA/CGPA · transcri
 
 PES University · Software Engineering mini-project · **Problem Statement No. 12**
 
-[![CI](https://github.com/TSSathyaKiran/SE_MINIPROJECT/actions/workflows/ci.yml/badge.svg)](https://github.com/TSSathyaKiran/SE_MINIPROJECT/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/tag/TSSathyaKiran/SE_MINIPROJECT?label=release&color=blue)](https://github.com/TSSathyaKiran/SE_MINIPROJECT/tags)
+[![CI](https://github.com/TSSathyaKiran/Student-Record-System/actions/workflows/ci.yml/badge.svg)](https://github.com/TSSathyaKiran/Student-Record-System/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/tag/TSSathyaKiran/Student-Record-System?label=release&color=blue)](https://github.com/TSSathyaKiran/Student-Record-System/tags)
 [![Tests](https://img.shields.io/badge/tests-268%20passing-brightgreen)](docs/reports/Unit_Test_Report.md)
 [![Coverage](https://img.shields.io/badge/coverage-97.9%25%20app%20lines-brightgreen)](docs/reports/Code_Coverage_Report.md)
 [![Test cases](https://img.shields.io/badge/test%20cases-33%2F33%20passed-brightgreen)](docs/Test_Plan/Test_Cases.md)
@@ -81,15 +81,15 @@ Screen recordings of the app on localhost with the demo data (`python src/seed.p
 
 | | Area | What it does | SRS | Issues |
 | --- | --- | --- | --- | --- |
-| 🔐 | Login and roles | Login and logout, role-based dashboards for admin, faculty and student, 15-minute idle timeout, lockout after 5 failed logins | 4.1 | [#1](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/1), [#2](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/2) |
-| 👤 | Student records | Admin creates, updates and deactivates students; students edit only their phone and address; search by ID or name | 4.2 | [#11](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/11), [#12](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/12), [#13](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/13) |
-| 📚 | Courses and enrollment | Courses with prerequisites, sections with capacity, enroll with seat and prerequisite checks, drop before the add/drop deadline | 4.3 | [#16](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/16), [#17](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/17) |
-| 🗓️ | Attendance | Faculty mark present / absent / late per session; students see their attendance percentage | 4.4 | [#7](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/7), [#8](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/8) |
-| 📝 | Grades | Marks entry locked after the grade-lock date, final grades, GPA and CGPA, grade-posted notifications | 4.5 | [#18](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/18), [#19](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/19) |
-| 📄 | Reports | Unofficial transcript and official report card as PDF | 4.6 | [#14](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/14) |
-| 💳 | Fees | Students see dues; enrollment is blocked when overdue fees pass the threshold | 4.7 | [#4](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/4) |
-| ⚙️ | Administration | Grading scale, deadlines and fee threshold settings; audit log viewer; uptime check and backup/restore | 4.8 | [#6](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/6), [#3](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/3), [#9](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/9) |
-| 🛡️ | Security and quality | Encrypted student PII, HTTPS with TLS 1.2+, security scans, performance and accessibility tests | 6, 7 | [#5](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/5), [#10](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/10), [#15](https://github.com/TSSathyaKiran/SE_MINIPROJECT/issues/15) |
+| 🔐 | Login and roles | Login and logout, role-based dashboards for admin, faculty and student, 15-minute idle timeout, lockout after 5 failed logins | 4.1 | [#1](https://github.com/TSSathyaKiran/Student-Record-System/issues/1), [#2](https://github.com/TSSathyaKiran/Student-Record-System/issues/2) |
+| 👤 | Student records | Admin creates, updates and deactivates students; students edit only their phone and address; search by ID or name | 4.2 | [#11](https://github.com/TSSathyaKiran/Student-Record-System/issues/11), [#12](https://github.com/TSSathyaKiran/Student-Record-System/issues/12), [#13](https://github.com/TSSathyaKiran/Student-Record-System/issues/13) |
+| 📚 | Courses and enrollment | Courses with prerequisites, sections with capacity, enroll with seat and prerequisite checks, drop before the add/drop deadline | 4.3 | [#16](https://github.com/TSSathyaKiran/Student-Record-System/issues/16), [#17](https://github.com/TSSathyaKiran/Student-Record-System/issues/17) |
+| 🗓️ | Attendance | Faculty mark present / absent / late per session; students see their attendance percentage | 4.4 | [#7](https://github.com/TSSathyaKiran/Student-Record-System/issues/7), [#8](https://github.com/TSSathyaKiran/Student-Record-System/issues/8) |
+| 📝 | Grades | Marks entry locked after the grade-lock date, final grades, GPA and CGPA, grade-posted notifications | 4.5 | [#18](https://github.com/TSSathyaKiran/Student-Record-System/issues/18), [#19](https://github.com/TSSathyaKiran/Student-Record-System/issues/19) |
+| 📄 | Reports | Unofficial transcript and official report card as PDF | 4.6 | [#14](https://github.com/TSSathyaKiran/Student-Record-System/issues/14) |
+| 💳 | Fees | Students see dues; enrollment is blocked when overdue fees pass the threshold | 4.7 | [#4](https://github.com/TSSathyaKiran/Student-Record-System/issues/4) |
+| ⚙️ | Administration | Grading scale, deadlines and fee threshold settings; audit log viewer; uptime check and backup/restore | 4.8 | [#6](https://github.com/TSSathyaKiran/Student-Record-System/issues/6), [#3](https://github.com/TSSathyaKiran/Student-Record-System/issues/3), [#9](https://github.com/TSSathyaKiran/Student-Record-System/issues/9) |
+| 🛡️ | Security and quality | Encrypted student PII, HTTPS with TLS 1.2+, security scans, performance and accessibility tests | 6, 7 | [#5](https://github.com/TSSathyaKiran/Student-Record-System/issues/5), [#10](https://github.com/TSSathyaKiran/Student-Record-System/issues/10), [#15](https://github.com/TSSathyaKiran/Student-Record-System/issues/15) |
 
 Each row is an epic on GitHub that tracks its issues. Live progress is on the **[sprint board](https://github.com/users/TSSathyaKiran/projects/3)**.
 
@@ -98,8 +98,8 @@ Each row is an epic on GitHub that tracks its issues. Live progress is on the **
 Needs Python 3.11 or newer. Everything runs locally; no internet is needed once it is installed.
 
 ```bash
-git clone https://github.com/TSSathyaKiran/SE_MINIPROJECT.git
-cd SE_MINIPROJECT
+git clone https://github.com/TSSathyaKiran/Student-Record-System.git
+cd Student-Record-System
 python3 -m venv .venv
 source .venv/bin/activate          # Windows (Git Bash): source .venv/Scripts/activate
 pip install -r requirements.txt
