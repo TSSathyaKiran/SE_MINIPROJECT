@@ -42,8 +42,8 @@ Everyone also builds their own issues and opens their own PRs.
 1. Accept the GitHub invite from TSSathyaKiran.
 2. Clone, and set your name and the **email on your GitHub account** (otherwise your commits won't count as yours):
    ```bash
-   git clone https://github.com/TSSathyaKiran/SE_MINIPROJECT.git
-   cd SE_MINIPROJECT
+   git clone https://github.com/TSSathyaKiran/Student-Record-System.git
+   cd Student-Record-System
    git config user.name "Your Name"
    git config user.email "your-github-email"
    ```
