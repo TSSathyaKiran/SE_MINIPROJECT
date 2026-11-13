@@ -22,6 +22,7 @@ PES University · Software Engineering mini-project · **Problem Statement No. 1
 [Team guide](docs/TEAM_GUIDE.md) ·
 [Test reports](docs/reports/) ·
 [Test cases](docs/Test_Plan/Test_Cases.md) ·
+[Demo videos](#demo-videos) ·
 [RTM](docs/Test_Plan/RTM.csv) ·
 [Deviations](docs/DEVIATIONS.md)
 
@@ -45,6 +46,7 @@ PES University · Software Engineering mini-project · **Problem Statement No. 1
 ## Contents
 
 - [Screenshots](#screenshots)
+- [Demo videos](#demo-videos)
 - [Features](#features)
 - [Quick start](#quick-start)
 - [Demo logins](#demo-logins)
@@ -65,6 +67,15 @@ PES University · Software Engineering mini-project · **Problem Statement No. 1
 | <img src="docs/images/student-grades.png" alt="Student grades page with term GPA, CGPA and a transcript download button"> | <img src="docs/images/faculty-attendance.png" alt="Faculty attendance page with Present, Absent and Late choices per student"> |
 | **Audit log (admin)** | **Log in** |
 | <img src="docs/images/admin-audit-log.png" alt="Admin audit log filtered by module and date, showing who changed what and when"> | <img src="docs/images/login.png" alt="Login page"> |
+
+## Demo videos
+
+Screen recordings of the app on localhost with the demo data (`python src/seed.py`), with no sound or captions.
+
+| Video | Length | What it shows |
+| --- | --- | --- |
+| 🎬 [Sprint 1](docs/demo/Sprint1_Demo.mp4) | 1:53 | Account lockout, student records, courses with prerequisites, enrollment, attendance and student search |
+| 🎬 [Final (Sprint 2)](docs/demo/Final_Demo.mp4) | 1:57 | Marks and grades, GPA and CGPA, notifications, transcript and report card PDFs, the overdue-fee enrollment block and the audit log |
 
 ## Features
 
@@ -262,6 +273,7 @@ docs/
   reports/                   unit test, system validation, code and branch coverage reports
   security/, ops/            scan results and fixes, PII checklist, operations runbook
   images/                    screenshots used in this README
+  demo/                      Sprint 1 and final demo videos
   BACKLOG.md                 the 19 issues and their requirements
   TEAM_GUIDE.md              setup, code patterns, and what to build per issue
   DEVIATIONS.md              changes from the SRS / SAD / Test Plan
